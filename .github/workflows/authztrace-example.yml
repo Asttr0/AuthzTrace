@@ -1,0 +1,37 @@
+# Example: how a project wires AuthzTrace into its own CI.
+# Copy this into your API repo's .github/workflows/ and adapt the "start API" step.
+name: authztrace
+
+on: [push, pull_request]
+
+jobs:
+  authz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install AuthzTrace
+        run: pip install -e .
+
+      # --- Bring up the API under test (adapt to your stack) ---
+      - name: Start the demo API
+        run: |
+          pip install -r examples/vulnerable-api/requirements.txt
+          SECURE=1 python examples/vulnerable-api/app.py &
+          for i in $(seq 1 20); do curl -sf localhost:3000/healthz -o /dev/null && break || sleep 0.5; done
+
+      - name: Run authorization contract
+        env:
+          ALICE_TOKEN: alice-token
+          BOB_TOKEN: bob-token
+        run: authztrace run -c examples/authztrace.yaml --sarif authztrace.sarif
+
+      - name: Upload results to the Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: authztrace.sarif

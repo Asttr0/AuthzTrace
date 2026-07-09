@@ -1,0 +1,47 @@
+# AuthzTrace contract.
+# You declare who owns what; AuthzTrace proves the API actually enforces it.
+# Run against the demo API in examples/vulnerable-api/.
+
+base_url: http://localhost:3000
+
+actors:
+  alice:
+    auth: { type: bearer, token: "${ALICE_TOKEN}" }
+  bob:
+    auth: { type: bearer, token: "${BOB_TOKEN}" }
+  anon:
+    auth: { type: none }
+
+resources:
+  invoice:
+    ids:
+      alice: inv_alice_001
+      bob: inv_bob_002
+    markers:
+      alice: "Alice private invoice"
+      bob: "Bob private invoice"
+    endpoints:
+      - name: read invoice by path id
+        request: GET /api/invoices/{id}
+        assertions:
+          deny_not_contains: ["{marker}"]
+      - name: delete invoice by path id
+        request: DELETE /api/invoices/{id}
+      - name: read invoice by query id
+        method: GET
+        path: /api/invoices
+        query:
+          id: "{id}"
+        assertions:
+          deny_not_contains: ["{marker}"]
+      - name: lookup invoice by JSON body id
+        method: POST
+        path: /api/invoices/lookup
+        json:
+          invoice_id: "{id}"
+        assertions:
+          deny_not_contains: ["{marker}"]
+
+policy:
+  default: owner-only        # only the owner may touch an object; everyone else must be denied
+  deny_status: [401, 403, 404]
