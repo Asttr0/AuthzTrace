@@ -50,7 +50,13 @@ If credentials or test fixtures are broken, AuthzTrace exits with a setup error 
 
 ## Quick Demo
 
-Clone the repo and install locally:
+Install AuthzTrace:
+
+```bash
+pip install authztrace
+```
+
+For local development from this repo:
 
 ```bash
 git clone https://github.com/Asttr0/AuthzTrace.git
@@ -291,7 +297,6 @@ Next priorities:
 - nested parent-child ownership
 - GraphQL BOLA checks
 - baselines for accepted deviations
-- PyPI release
 
 ## License
 

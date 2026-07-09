@@ -6,7 +6,9 @@
 - Added read-only execution by default, endpoint `safe: true` / `safe: false`, `--include-unsafe`, and skipped-row reporting.
 - Added category-aware results (`bola`, `leak`, `setup`, `over_restrictive`, `unsafe_skipped`) across terminal, JSON, JUnit, and SARIF.
 - Added stable SARIF partial fingerprints and region metadata for GitHub code scanning.
-- Added GitHub Actions permissions for SARIF upload and a CI smoke test for the composite Action.
+- Added GitHub Actions permissions for SARIF upload and clean/vulnerable CI smoke tests for the composite Action.
+- Added PyPI Trusted Publishing workflow for tag-based releases.
+- Added Python setup inside the composite Action for runner portability.
 - Added `--include-unsafe` CLI option.
 
 ## 0.2.0 - 2026-07-09

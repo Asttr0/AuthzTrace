@@ -82,3 +82,51 @@ jobs:
           assert suite.attrib["errors"] == "0"
           assert suite.attrib["skipped"] == "6"
           PY
+
+  action-finding-smoke-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start vulnerable demo API
+        run: |
+          python -m pip install -r examples/vulnerable-api/requirements.txt
+          python examples/vulnerable-api/app.py &
+          for i in $(seq 1 20); do curl -sf localhost:3000/healthz -o /dev/null && break || sleep 0.5; done
+
+      - name: Run local composite Action against vulnerable API
+        id: authztrace
+        uses: ./
+        continue-on-error: true
+        env:
+          ALICE_TOKEN: alice-token
+          BOB_TOKEN: bob-token
+        with:
+          config: examples/authztrace.yaml
+          sarif: vulnerable-authztrace.sarif
+          json: vulnerable-authztrace.json
+          junit: vulnerable-authztrace.xml
+
+      - name: Validate finding outputs
+        run: |
+          test "${{ steps.authztrace.outcome }}" = "failure"
+          python - <<'PY'
+          import json
+          import xml.etree.ElementTree as ET
+
+          with open("vulnerable-authztrace.json", encoding="utf-8") as f:
+              report = json.load(f)
+          assert report["summary"]["fail"] == 6
+          assert report["summary"]["error"] == 0
+          assert report["summary"]["skipped"] == 6
+
+          with open("vulnerable-authztrace.sarif", encoding="utf-8") as f:
+              sarif = json.load(f)
+          assert len(sarif["runs"][0]["results"]) == 6
+
+          suite = ET.parse("vulnerable-authztrace.xml").getroot()
+          assert suite.attrib["failures"] == "6"
+          assert suite.attrib["errors"] == "0"
+          assert suite.attrib["skipped"] == "6"
+          PY
