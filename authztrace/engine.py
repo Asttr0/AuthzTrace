@@ -47,6 +47,15 @@ def _assertions(resp: requests.Response, check: Check) -> list[str]:
     failures: list[str] = []
     assertions = check.assertions or {}
 
+    if check.expect == "allow":
+        allowed_markers = assertions.get("allow_contains") or []
+        if isinstance(allowed_markers, str):
+            allowed_markers = [allowed_markers]
+        for marker in allowed_markers:
+            marker = str(marker)
+            if marker and marker not in resp.text:
+                failures.append(f"allowed response missed required marker {marker!r}")
+
     if check.expect == "deny":
         denied_markers = assertions.get("deny_not_contains") or assertions.get("not_contains") or []
         if isinstance(denied_markers, str):

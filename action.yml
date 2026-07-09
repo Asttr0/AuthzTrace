@@ -1,0 +1,65 @@
+name: AuthzTrace
+description: Authorization contract testing for IDOR/BOLA in CI
+author: Mohamed Taha Slimani
+
+branding:
+  icon: shield
+  color: red
+
+inputs:
+  config:
+    description: Path to authztrace.yaml
+    required: false
+    default: authztrace.yaml
+  base-url:
+    description: Override base_url from the contract
+    required: false
+    default: ""
+  sarif:
+    description: SARIF output path
+    required: false
+    default: authztrace.sarif
+  json:
+    description: JSON output path
+    required: false
+    default: ""
+  junit:
+    description: JUnit XML output path
+    required: false
+    default: ""
+  strict:
+    description: Return non-zero when warnings occur
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Install AuthzTrace
+      shell: bash
+      run: python -m pip install "$GITHUB_ACTION_PATH"
+
+    - name: Run AuthzTrace
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        args=(run -c "${{ inputs.config }}" --sarif "${{ inputs.sarif }}")
+
+        if [ -n "${{ inputs.base-url }}" ]; then
+          args+=(--base-url "${{ inputs.base-url }}")
+        fi
+
+        if [ -n "${{ inputs.json }}" ]; then
+          args+=(--json "${{ inputs.json }}")
+        fi
+
+        if [ -n "${{ inputs.junit }}" ]; then
+          args+=(--junit "${{ inputs.junit }}")
+        fi
+
+        if [ "${{ inputs.strict }}" = "true" ]; then
+          args+=(--strict)
+        fi
+
+        authztrace "${args[@]}"

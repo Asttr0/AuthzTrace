@@ -16,8 +16,18 @@ SECURE = os.environ.get("SECURE") == "1"
 
 TOKENS = {"alice-token": "alice", "bob-token": "bob"}
 INVOICES = {
-    "inv_alice_001": {"id": "inv_alice_001", "owner": "alice", "amount": 4200, "note": "Alice private invoice"},
-    "inv_bob_002":   {"id": "inv_bob_002",   "owner": "bob",   "amount": 1337, "note": "Bob private invoice"},
+    "inv_alice_001": {
+        "id": "inv_alice_001",
+        "owner": "alice",
+        "amount": 4200,
+        "note": "Alice private invoice",
+    },
+    "inv_bob_002": {
+        "id": "inv_bob_002",
+        "owner": "bob",
+        "amount": 1337,
+        "note": "Bob private invoice",
+    },
 }
 
 

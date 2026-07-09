@@ -24,6 +24,7 @@ resources:
       - name: read invoice by path id
         request: GET /api/invoices/{id}
         assertions:
+          allow_contains: ["{marker}"]
           deny_not_contains: ["{marker}"]
       - name: delete invoice by path id
         request: DELETE /api/invoices/{id}
@@ -33,6 +34,7 @@ resources:
         query:
           id: "{id}"
         assertions:
+          allow_contains: ["{marker}"]
           deny_not_contains: ["{marker}"]
       - name: lookup invoice by JSON body id
         method: POST
@@ -40,6 +42,7 @@ resources:
         json:
           invoice_id: "{id}"
         assertions:
+          allow_contains: ["{marker}"]
           deny_not_contains: ["{marker}"]
 
 policy:

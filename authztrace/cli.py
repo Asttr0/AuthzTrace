@@ -8,6 +8,7 @@ from . import __version__
 from .config import load_contract
 from .engine import run as run_checks
 from .matrix import generate
+from .openapi import generate_contract, write_contract
 from .report import counts, to_json, to_junit, to_sarif, to_terminal
 
 
@@ -42,8 +43,23 @@ def _run(args) -> int:
         print(f"\nJUnit written to {args.junit}")
 
     c = counts(results)
-    # Non-zero exit (fails CI) if a BOLA was proven or a request errored out.
-    return 1 if (c["fail"] or c["error"]) else 0
+    # Non-zero exit fails CI when a BOLA was proven or a request errored out.
+    if c["fail"] or c["error"] or (args.strict and c["warn"]):
+        return 1
+    return 0
+
+
+def _init(args) -> int:
+    try:
+        contract = generate_contract(args.from_file, base_url=args.base_url)
+        write_contract(contract, args.output, force=args.force)
+    except (OSError, ValueError, FileExistsError) as exc:
+        print(f"authztrace: cannot generate contract: {exc}", file=sys.stderr)
+        return 2
+
+    print(f"AuthzTrace contract written to {args.output}")
+    print("Set the generated *_ID and *_TOKEN environment variables before running it.")
+    return 0
 
 
 def main(argv=None) -> int:
@@ -65,12 +81,31 @@ def main(argv=None) -> int:
     run_p.add_argument("--junit", metavar="FILE", help="also write JUnit XML to FILE")
     run_p.add_argument("--base-url", help="override base_url from the contract")
     run_p.add_argument("--timeout", type=float, default=10.0, help="per-request timeout in seconds")
+    run_p.add_argument("--strict", action="store_true", help="return non-zero when warnings occur")
     run_p.add_argument("--no-color", action="store_true", help="disable ANSI colors")
+
+    init_p = sub.add_parser("init", help="scaffold a contract from an OpenAPI spec")
+    init_p.add_argument(
+        "--from",
+        dest="from_file",
+        required=True,
+        help="path to an OpenAPI JSON/YAML file",
+    )
+    init_p.add_argument(
+        "-o",
+        "--output",
+        default="authztrace.yaml",
+        help="contract path to write (default: authztrace.yaml)",
+    )
+    init_p.add_argument("--base-url", help="override server URL from the OpenAPI spec")
+    init_p.add_argument("--force", action="store_true", help="overwrite output if it exists")
 
     args = parser.parse_args(argv)
 
     if args.command == "run":
         return _run(args)
+    if args.command == "init":
+        return _init(args)
 
     parser.print_help()
     return 2

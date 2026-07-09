@@ -33,14 +33,14 @@ authztrace run -c examples/authztrace.yaml
 Against the vulnerable API you get **FAIL** — AuthzTrace proves the BOLA:
 
 ```
-RESULT ACTOR    EXPECT  STATUS  METHOD  PATH
---------------------------------------------------------------------------
-PASS   alice    allow   200     GET     /api/invoices/inv_alice_001
-FAIL   bob      deny    200     GET     /api/invoices/inv_alice_001
-         -> BOLA: 'bob' accessed alice's invoice (inv_alice_001) — HTTP 200
-PASS   anon     deny    401     GET     /api/invoices/inv_alice_001
+RESULT ACTOR      TARGET     EXPECT  STATUS  METHOD  PATH
+------------------------------------------------------------------------------------------------
+PASS   alice      alice      allow   200     GET     /api/invoices/inv_alice_001
+FAIL   bob        alice      deny    200     GET     /api/invoices/inv_alice_001
+         -> BOLA: 'bob' accessed alice's invoice (inv_alice_001) - HTTP 200; denied response leaked forbidden marker 'Alice private invoice'
+PASS   anon       alice      deny    401     GET     /api/invoices/inv_alice_001
 ...
-8 passed, 4 FAILED (BOLA), 0 warnings, 0 errors, 12 checks
+16 passed, 8 FAILED (BOLA), 0 warnings, 0 errors, 24 checks
 ```
 
 Now restart the API with the one-line ownership fix and run again:
@@ -76,17 +76,24 @@ resources:
       - name: read invoice by path id
         request: GET /api/invoices/{id}
         assertions:
+          allow_contains: ["{marker}"]
           deny_not_contains: ["{marker}"]
       - name: read invoice by query id
         method: GET
         path: /api/invoices
         query:
           id: "{id}"
+        assertions:
+          allow_contains: ["{marker}"]
+          deny_not_contains: ["{marker}"]
       - name: lookup invoice by JSON body id
         method: POST
         path: /api/invoices/lookup
         json:
           invoice_id: "{id}"
+        assertions:
+          allow_contains: ["{marker}"]
+          deny_not_contains: ["{marker}"]
 
 policy:
   default: owner-only          # only the owner may access an object
@@ -95,7 +102,23 @@ policy:
 
 From those few lines AuthzTrace expands **every (actor x object x endpoint)** combination and asserts *owner = allow, everyone else = deny*. You never hand-write the permutations — that's the part it automates.
 
-Structured endpoints support object IDs in paths, query params, headers, JSON bodies, and form bodies. Endpoint `allow` rules can also include named actors such as `admin` when a privileged role should access every object.
+Structured endpoints support object IDs in paths, query params, headers, JSON bodies, and form bodies. Endpoint `allow` rules can include named actors such as `admin` when a privileged role should access every object.
+
+`allow: [authenticated]` means any non-anonymous actor may access the object, so AuthzTrace will not flag cross-user reads on that endpoint. Use it only for resources that are intentionally shared between all logged-in users.
+
+Exact placeholders preserve their original type. If `id` is numeric, `json: { invoice_id: "{id}" }` sends a number; mixed strings like `/api/items/{id}` are rendered as strings.
+
+---
+
+## Generate a starter contract
+
+You can scaffold a first contract from OpenAPI/Swagger:
+
+```bash
+authztrace init --from openapi.yaml --output authztrace.yaml
+```
+
+The generator is conservative: it creates resources for single-object path IDs like `/api/invoices/{invoice_id}` and simple query IDs like `/api/invoices?id=...`. You still review ownership and IDs before committing the contract.
 
 ---
 
@@ -115,6 +138,18 @@ authztrace run -c authztrace.yaml --json authztrace.json --junit authztrace.xml
 
 A ready-to-copy workflow is in [`.github/workflows/authztrace-example.yml`](.github/workflows/authztrace-example.yml). Exit code is non-zero when a BOLA is proven, so the pipeline fails on real findings.
 
+You can also use the composite GitHub Action from this repo:
+
+```yaml
+- uses: Asttr0/AuthzTrace@v0.2.0
+  with:
+    config: authztrace.yaml
+    sarif: authztrace.sarif
+    strict: "true"
+```
+
+Use `--strict` or `strict: "true"` when warnings should also fail CI.
+
 ---
 
 ## Why not just use a scanner?
@@ -133,11 +168,11 @@ Authorization is logic, so the fix isn't a smarter crawler — it's letting the 
 
 ## Roadmap
 
-The IDOR/BOLA pattern library and what's implemented vs. planned lives in [`docs/CORPUS.md`](docs/CORPUS.md). Next up: first-class GraphQL support, nested object ownership, method-override bypasses, and a contract generator from OpenAPI.
+The IDOR/BOLA pattern library and what's implemented vs. planned lives in [`docs/CORPUS.md`](docs/CORPUS.md). Next up: first-class GraphQL support, nested object ownership, method-override bypasses, login-flow auth, and baselines for accepted deviations.
 
 ## Status
 
-Alpha. The engine, contract format, terminal/SARIF/JSON/JUnit output, and the demo are working end to end. Contributions and real-world contracts welcome — especially IDOR patterns you've seen in the wild.
+Alpha. The engine, contract format, OpenAPI starter generator, terminal/SARIF/JSON/JUnit output, GitHub Action, and the demo are working end to end. Contributions and real-world contracts welcome — especially IDOR patterns you've seen in the wild.
 
 ## License
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -24,7 +24,7 @@ def _expand(value):
     return value
 
 
-def _as_list(value: Any, default: Optional[list[str]] = None) -> list[str]:
+def _as_list(value: Any, default: list[str] | None = None) -> list[str]:
     if value is None:
         return list(default or [])
     if isinstance(value, list):
@@ -75,7 +75,12 @@ def _endpoint(raw: Any, name: str) -> Endpoint:
     )
 
 
-def _context(resource: Resource | None, actor: str, owner: str, object_id: Any) -> dict[str, Any]:
+def _context(
+    resource: Resource | None,
+    actor: str,
+    owner: str,
+    object_id: Any,
+) -> dict[str, Any]:
     marker = ""
     if resource and owner:
         marker = resource.markers.get(owner, "")
@@ -109,9 +114,25 @@ def _explicit_check(spec: dict[str, Any], index: int, resources: dict[str, Resou
 
     request = spec.get("request")
     if isinstance(request, str):
-        endpoint = _endpoint({"request": request}, name)
+        endpoint_spec = {
+            "request": request,
+            "query": spec.get("query") or spec.get("params") or {},
+            "headers": spec.get("headers") or {},
+            "json": spec.get("json", None),
+            "data": spec.get("data", None),
+            "assertions": spec.get("assertions") or {},
+        }
+        endpoint = _endpoint(endpoint_spec, name)
     elif isinstance(request, dict):
-        endpoint = _endpoint(request, name)
+        endpoint_spec = {
+            "query": spec.get("query") or spec.get("params") or {},
+            "headers": spec.get("headers") or {},
+            "json": spec.get("json", None),
+            "data": spec.get("data", None),
+            "assertions": spec.get("assertions") or {},
+        }
+        endpoint_spec.update(request)
+        endpoint = _endpoint(endpoint_spec, name)
     else:
         endpoint = _endpoint(spec, name)
 
@@ -178,6 +199,11 @@ def load_contract(path: str) -> Contract:
         _explicit_check(spec or {}, idx, resources)
         for idx, spec in enumerate(raw.get("contracts") or raw.get("checks") or [], start=1)
     ]
+    for chk in checks:
+        if chk.actor not in actors:
+            raise ValueError(f"contract {chk.name!r} references unknown actor {chk.actor!r}")
+        if chk.resource and chk.resource not in resources:
+            raise ValueError(f"contract {chk.name!r} references unknown resource {chk.resource!r}")
 
     return Contract(
         base_url=raw["base_url"].rstrip("/"),

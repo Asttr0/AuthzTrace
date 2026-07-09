@@ -13,10 +13,10 @@ Reference: [OWASP API Security Top 10 — API1:2023 Broken Object Level Authoriz
 | 2 | **Unauthenticated object access** | The anonymous caller reaches a private object | `anon` actor included in the matrix, must be denied | ✅ MVP |
 | 3 | **Read/write asymmetry** | `GET` is protected but `DELETE`/`PUT` is not | Every method in `endpoints` is tested independently | ✅ MVP |
 | 4 | **Deny-status info leak** | Denied with `403` (object exists) instead of `404` (existence hidden) | `deny_status` policy; strict mode flags `403` where `404` expected | 🔶 warn only |
-| 5 | **Vertical privilege escalation** | A normal user reaches an admin-only object/endpoint | Roles + per-endpoint required-role in the contract | 🔜 roadmap |
+| 5 | **Vertical privilege escalation** | A normal user reaches an admin-only object/endpoint | `allow: [admin]` covers named actors today; first-class roles are next | 🔶 partial |
 | 6 | **IDOR outside the path** | The id lives in a query param, body, or header, not `/{id}` | Structured endpoints with `query`, `json`, `data`, and `headers` templates | ✅ MVP |
 | 7 | **Object-in-object (nested) IDOR** | `/orgs/{a}/users/{b}` — only the outer id is checked | Multi-id endpoints and per-segment ownership | 🔜 roadmap |
-| 8 | **Response-body leak on denial** | The API returns an error status but still leaks object data in the body | `deny_not_contains` and `no_fields` response assertions | ✅ MVP |
+| 8 | **Response-body leak or missing object body** | A denied response leaks object data, or an allowed response returns the wrong body | `deny_not_contains`, `allow_contains`, and `no_fields` response assertions | ✅ MVP |
 | 9 | **Predictable id enumeration** | Sequential/guessable ids invite mass IDOR | Detect integer/sequential ids and warn; optional fuzz sweep | 🔜 roadmap |
 | 10 | **Mass assignment of owner** | Caller sets `owner_id` in the body to hijack/plant objects | Send tampered ownership fields, assert rejection | 🔜 roadmap |
 | 11 | **GraphQL node IDOR** | `node(id:)` / global-id lookups bypass object checks | GraphQL adapter reusing the same contract model | 🔜 roadmap |

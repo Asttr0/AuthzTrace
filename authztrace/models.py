@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -53,7 +53,7 @@ class Contract:
     actors: dict[str, Actor]
     resources: dict[str, Resource]
     policy: Policy
-    checks: list["Check"] = field(default_factory=list)
+    checks: list[Check] = field(default_factory=list)
 
 
 @dataclass
@@ -78,7 +78,7 @@ class Check:
 @dataclass
 class Result:
     check: Check
-    status: Optional[int]
+    status: int | None
     outcome: str
     note: str = ""
-    elapsed_ms: Optional[int] = None
+    elapsed_ms: int | None = None

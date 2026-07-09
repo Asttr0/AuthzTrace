@@ -1,17 +1,17 @@
 [project]
 name = "authztrace"
-version = "0.1.0"
+version = "0.2.0"
 description = "Authorization contract testing for IDOR/BOLA — prove user A can't touch user B's objects, in CI."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Mohamed Taha Slimani (@Asttr0)" }]
 keywords = ["security", "idor", "bola", "api-security", "authorization", "owasp", "appsec", "ci", "dast"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Topic :: Security",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
@@ -21,7 +21,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "build>=1.2",
     "pytest>=8",
+    "ruff>=0.8",
 ]
 
 [project.urls]
@@ -32,8 +34,18 @@ Issues = "https://github.com/Asttr0/authztrace/issues"
 authztrace = "authztrace.cli:main"
 
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["authztrace*"]
+
+[tool.setuptools.package-data]
+authztrace = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

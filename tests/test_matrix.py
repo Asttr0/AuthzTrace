@@ -42,7 +42,9 @@ def test_query_and_json_body_are_templated():
         )
     ]
 
-    check = next(chk for chk in generate(contract) if chk.actor == "bob" and chk.target_owner == "alice")
+    check = next(
+        chk for chk in generate(contract) if chk.actor == "bob" and chk.target_owner == "alice"
+    )
 
     assert check.query == {"actor": "bob"}
     assert check.json == {"invoice_id": "a1", "owner": "alice"}
@@ -51,7 +53,12 @@ def test_query_and_json_body_are_templated():
 def test_named_actor_can_be_allowed_for_all_objects():
     contract = _contract()
     contract.resources["invoice"].endpoints = [
-        Endpoint(name="admin read", method="GET", path="/api/invoices/{id}", allow=["owner", "admin"])
+        Endpoint(
+            name="admin read",
+            method="GET",
+            path="/api/invoices/{id}",
+            allow=["owner", "admin"],
+        )
     ]
 
     admin_checks = [chk for chk in generate(contract) if chk.actor == "admin"]
