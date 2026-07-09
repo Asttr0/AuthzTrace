@@ -65,3 +65,21 @@ def test_named_actor_can_be_allowed_for_all_objects():
 
     assert admin_checks
     assert {chk.expect for chk in admin_checks} == {"allow"}
+
+
+def test_generated_checks_keep_endpoint_safety_and_template():
+    contract = _contract()
+    contract.resources["invoice"].endpoints = [
+        Endpoint(
+            name="lookup",
+            method="POST",
+            path="/api/invoices/lookup",
+            safe=True,
+        )
+    ]
+
+    check = generate(contract)[0]
+
+    assert check.safe is True
+    assert check.path_template == "/api/invoices/lookup"
+    assert check.endpoint_name == "lookup"

@@ -28,7 +28,7 @@ def _resource_name(path: str, param: str) -> str:
     if marker in parts:
         idx = parts.index(marker)
         if idx > 0:
-            return parts[idx - 1].replace("-", "_").rstrip("s") or "resource"
+            return re.sub(r"(?<!s)s$", "", parts[idx - 1].replace("-", "_")) or "resource"
     return param.removesuffix("_id").removesuffix("Id").replace("-", "_") or "resource"
 
 

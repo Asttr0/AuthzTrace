@@ -11,7 +11,7 @@ Reference: [OWASP API Security Top 10 — API1:2023 Broken Object Level Authoriz
 |---|---------|-----------|--------------------------|--------|
 | 1 | **Horizontal IDOR** | User B reads/edits User A's object by using A's object id | Cross-actor matrix: every non-owner must be denied the owner's id | ✅ MVP |
 | 2 | **Unauthenticated object access** | The anonymous caller reaches a private object | `anon` actor included in the matrix, must be denied | ✅ MVP |
-| 3 | **Read/write asymmetry** | `GET` is protected but `DELETE`/`PUT` is not | Every method in `endpoints` is tested independently | ✅ MVP |
+| 3 | **Read/write asymmetry** | `GET` is protected but `DELETE`/`PUT` is not | Every method in `endpoints` is tested independently; mutating verbs are skipped by default unless marked `safe: true` or run with `--include-unsafe` | ✅ MVP |
 | 4 | **Deny-status info leak** | Denied with `403` (object exists) instead of `404` (existence hidden) | `deny_status` policy; strict mode flags `403` where `404` expected | 🔶 warn only |
 | 5 | **Vertical privilege escalation** | A normal user reaches an admin-only object/endpoint | `allow: [admin]` covers named actors today; first-class roles are next | 🔶 partial |
 | 6 | **IDOR outside the path** | The id lives in a query param, body, or header, not `/{id}` | Structured endpoints with `query`, `json`, `data`, and `headers` templates | ✅ MVP |

@@ -83,6 +83,42 @@ contracts:
     assert check.headers == {"X-Test-Actor": "bob"}
 
 
+def test_endpoint_safe_overrides_method_defaults(tmp_path):
+    contract_file = tmp_path / "authztrace.yaml"
+    contract_file.write_text(
+        """
+base_url: http://example.test
+actors:
+  alice: { auth: { type: bearer, token: alice-token } }
+resources:
+  invoice:
+    ids:
+      alice: inv_a
+    endpoints:
+      - name: lookup is read-like
+        request: POST /api/invoices/lookup
+        safe: true
+      - name: side effecting get
+        request: GET /api/invoices/{id}/recalculate
+        safe: false
+contracts:
+  - name: explicit read-like post
+    as: alice
+    request: POST /api/invoices/lookup
+    safe: true
+    expect: allow
+""",
+        encoding="utf-8",
+    )
+
+    contract = load_contract(str(contract_file))
+    endpoints = contract.resources["invoice"].endpoints
+
+    assert endpoints[0].safe is True
+    assert endpoints[1].safe is False
+    assert contract.checks[0].safe is True
+
+
 def test_unknown_actor_fails_at_load_time(tmp_path):
     contract_file = tmp_path / "authztrace.yaml"
     contract_file.write_text(

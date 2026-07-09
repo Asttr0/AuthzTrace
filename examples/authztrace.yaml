@@ -39,6 +39,7 @@ resources:
       - name: lookup invoice by JSON body id
         method: POST
         path: /api/invoices/lookup
+        safe: true
         json:
           invoice_id: "{id}"
         assertions:

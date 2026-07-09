@@ -66,3 +66,26 @@ paths:
         "path": "/api/invoices",
         "query": {"id": "{id}"},
     }
+
+
+def test_resource_name_only_removes_one_plural_suffix(tmp_path):
+    spec_file = tmp_path / "openapi.yaml"
+    spec_file.write_text(
+        """
+openapi: 3.1.0
+paths:
+  /api/access/{access_id}:
+    get:
+      operationId: getAccess
+      parameters:
+        - name: access_id
+          in: path
+          required: true
+          schema: { type: string }
+""",
+        encoding="utf-8",
+    )
+
+    contract = generate_contract(str(spec_file), base_url="http://localhost:8000")
+
+    assert "access" in contract["resources"]

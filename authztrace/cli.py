@@ -12,6 +12,15 @@ from .openapi import generate_contract, write_contract
 from .report import counts, to_json, to_junit, to_sarif, to_terminal
 
 
+def _exit_code(results, strict: bool = False) -> int:
+    c = counts(results)
+    if any(result.outcome == "error" and result.category == "setup" for result in results):
+        return 2
+    if c["fail"] or (strict and c["warn"]):
+        return 1
+    return 0
+
+
 def _run(args) -> int:
     try:
         contract = load_contract(args.config)
@@ -23,13 +32,18 @@ def _run(args) -> int:
         contract.base_url = args.base_url.rstrip("/")
 
     checks = generate(contract)
-    results = run_checks(contract, checks, timeout=args.timeout)
+    results = run_checks(
+        contract,
+        checks,
+        timeout=args.timeout,
+        include_unsafe=args.include_unsafe,
+    )
 
     print(to_terminal(results, color=not args.no_color))
 
     if args.sarif:
         with open(args.sarif, "w", encoding="utf-8") as f:
-            f.write(to_sarif(results))
+            f.write(to_sarif(results, artifact_uri=args.config))
         print(f"\nSARIF written to {args.sarif}")
 
     if args.json:
@@ -42,11 +56,7 @@ def _run(args) -> int:
             f.write(to_junit(results))
         print(f"\nJUnit written to {args.junit}")
 
-    c = counts(results)
-    # Non-zero exit fails CI when a BOLA was proven or a request errored out.
-    if c["fail"] or c["error"] or (args.strict and c["warn"]):
-        return 1
-    return 0
+    return _exit_code(results, strict=args.strict)
 
 
 def _init(args) -> int:
@@ -82,6 +92,11 @@ def main(argv=None) -> int:
     run_p.add_argument("--base-url", help="override base_url from the contract")
     run_p.add_argument("--timeout", type=float, default=10.0, help="per-request timeout in seconds")
     run_p.add_argument("--strict", action="store_true", help="return non-zero when warnings occur")
+    run_p.add_argument(
+        "--include-unsafe",
+        action="store_true",
+        help="execute non-read-only endpoints such as POST, PUT, PATCH, and DELETE",
+    )
     run_p.add_argument("--no-color", action="store_true", help="disable ANSI colors")
 
     init_p = sub.add_parser("init", help="scaffold a contract from an OpenAPI spec")

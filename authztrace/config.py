@@ -7,7 +7,7 @@ from typing import Any
 
 import yaml
 
-from .models import Actor, Check, Contract, Endpoint, Policy, Resource
+from .models import Actor, Check, Contract, Endpoint, Policy, Resource, effective_safe
 from .templating import render
 
 _ENV = re.compile(r"\$\{([A-Z0-9_]+)\}")
@@ -62,6 +62,10 @@ def _endpoint(raw: Any, name: str) -> Endpoint:
     if not method or not path:
         raise ValueError(f"endpoint {name!r} must define method/path")
 
+    safe = spec.pop("safe", None)
+    if safe is not None and not isinstance(safe, bool):
+        raise ValueError(f"endpoint {name!r} safe must be true or false")
+
     return Endpoint(
         name=str(spec.pop("name", name)),
         method=method,
@@ -72,6 +76,7 @@ def _endpoint(raw: Any, name: str) -> Endpoint:
         data=spec.pop("data", None),
         allow=_as_list(spec.pop("allow", None), ["owner"]),
         assertions=spec.pop("assertions", {}) or {},
+        safe=safe,
     )
 
 
@@ -121,6 +126,7 @@ def _explicit_check(spec: dict[str, Any], index: int, resources: dict[str, Resou
             "json": spec.get("json", None),
             "data": spec.get("data", None),
             "assertions": spec.get("assertions") or {},
+            "safe": spec.get("safe", None),
         }
         endpoint = _endpoint(endpoint_spec, name)
     elif isinstance(request, dict):
@@ -130,6 +136,7 @@ def _explicit_check(spec: dict[str, Any], index: int, resources: dict[str, Resou
             "json": spec.get("json", None),
             "data": spec.get("data", None),
             "assertions": spec.get("assertions") or {},
+            "safe": spec.get("safe", None),
         }
         endpoint_spec.update(request)
         endpoint = _endpoint(endpoint_spec, name)
@@ -142,6 +149,8 @@ def _explicit_check(spec: dict[str, Any], index: int, resources: dict[str, Resou
         actor=actor,
         method=endpoint.method,
         path=render(endpoint.path, ctx),
+        path_template=endpoint.path,
+        endpoint_name=endpoint.name,
         query=render(endpoint.query, ctx),
         headers=render(endpoint.headers, ctx),
         json=render(endpoint.json, ctx),
@@ -150,6 +159,7 @@ def _explicit_check(spec: dict[str, Any], index: int, resources: dict[str, Resou
         object_id=str(object_id),
         expect=str(spec.get("expect") or "deny"),
         assertions=render(endpoint.assertions | (spec.get("assertions") or {}), ctx),
+        safe=effective_safe(endpoint.method, endpoint.safe),
     )
 
 

@@ -31,6 +31,10 @@ inputs:
     description: Return non-zero when warnings occur
     required: false
     default: "false"
+  include-unsafe:
+    description: Execute non-read-only endpoints such as POST, PUT, PATCH, and DELETE
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -60,6 +64,10 @@ runs:
 
         if [ "${{ inputs.strict }}" = "true" ]; then
           args+=(--strict)
+        fi
+
+        if [ "${{ inputs.include-unsafe }}" = "true" ]; then
+          args+=(--include-unsafe)
         fi
 
         authztrace "${args[@]}"

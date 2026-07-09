@@ -6,7 +6,7 @@ product from a few lines of ownership declaration.
 """
 from __future__ import annotations
 
-from .models import Check, Contract, Endpoint
+from .models import Check, Contract, Endpoint, effective_safe
 from .templating import render
 
 
@@ -61,6 +61,8 @@ def generate(contract: Contract) -> list[Check]:
                             actor=actor_name,
                             method=endpoint.method,
                             path=render(endpoint.path, ctx),
+                            path_template=endpoint.path,
+                            endpoint_name=endpoint.name,
                             query=render(endpoint.query, ctx),
                             headers=render(endpoint.headers, ctx),
                             json=render(endpoint.json, ctx),
@@ -73,6 +75,7 @@ def generate(contract: Contract) -> list[Check]:
                                 else "deny"
                             ),
                             assertions=render(endpoint.assertions, ctx),
+                            safe=effective_safe(endpoint.method, endpoint.safe),
                         )
                     )
     return checks + contract.checks
