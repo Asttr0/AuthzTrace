@@ -221,7 +221,7 @@ authztrace run -c authztrace.yaml --sarif authztrace.sarif
 Or use the composite GitHub Action:
 
 ```yaml
-- uses: Asttr0/AuthzTrace@v0.2.0
+- uses: Asttr0/AuthzTrace@v0.3.0
   with:
     config: authztrace.yaml
     sarif: authztrace.sarif

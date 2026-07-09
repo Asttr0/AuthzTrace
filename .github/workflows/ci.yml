@@ -31,3 +31,54 @@ jobs:
 
       - name: Build
         run: python -m build
+
+  action-smoke-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Start secure demo API
+        run: |
+          python -m pip install -r examples/vulnerable-api/requirements.txt
+          SECURE=1 python examples/vulnerable-api/app.py &
+          for i in $(seq 1 20); do curl -sf localhost:3000/healthz -o /dev/null && break || sleep 0.5; done
+
+      - name: Run local composite Action
+        uses: ./
+        env:
+          ALICE_TOKEN: alice-token
+          BOB_TOKEN: bob-token
+        with:
+          config: examples/authztrace.yaml
+          sarif: action-authztrace.sarif
+          json: action-authztrace.json
+          junit: action-authztrace.xml
+          strict: "true"
+
+      - name: Validate Action outputs
+        run: |
+          python - <<'PY'
+          import json
+          import xml.etree.ElementTree as ET
+
+          with open("action-authztrace.json", encoding="utf-8") as f:
+              report = json.load(f)
+          assert report["summary"]["fail"] == 0
+          assert report["summary"]["error"] == 0
+          assert report["summary"]["skipped"] == 6
+
+          with open("action-authztrace.sarif", encoding="utf-8") as f:
+              sarif = json.load(f)
+          assert sarif["runs"][0]["results"] == []
+
+          suite = ET.parse("action-authztrace.xml").getroot()
+          assert suite.attrib["failures"] == "0"
+          assert suite.attrib["errors"] == "0"
+          assert suite.attrib["skipped"] == "6"
+          PY
