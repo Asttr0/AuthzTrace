@@ -4,6 +4,11 @@ name: authztrace
 
 on: [push, pull_request]
 
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
 jobs:
   authz:
     runs-on: ubuntu-latest
@@ -31,7 +36,7 @@ jobs:
         run: authztrace run -c examples/authztrace.yaml --sarif authztrace.sarif
 
       - name: Upload results to the Security tab
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: authztrace.sarif
