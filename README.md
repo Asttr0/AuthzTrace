@@ -1,14 +1,6 @@
-<div align="center">
-<pre>
- ______           __    __             ______
-/\  _  \         /\ \__/\ \           /\__  _\
-\ \ \L\ \  __  __\ \ ,_\ \ \___   ____\/_/\ \/ _ __    __      ___     __
- \ \  __ \/\ \/\ \\ \ \/\ \  _ `\/\_ ,`\ \ \ \/\`'__\/'__`\   /'___\ /'__`\
-  \ \ \/\ \ \ \_\ \\ \ \_\ \ \ \ \/_/  /_ \ \ \ \ \//\ \L\.\_/\ \__//\  __/
-   \ \_\ \_\ \____/ \ \__\\ \_\ \_\/\____\ \ \_\ \_\\ \__/.\_\ \____\ \____\
-    \/_/\/_/\/___/   \/__/ \/_/\/_/\/____/  \/_/\/_/ \/__/\/_/\/____/\/____/
-</pre>
-</div>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Asttr0/AuthzTrace/main/docs/assets/authztrace-larry3d.svg" alt="AuthzTrace" width="860">
+</p>
 
 <p align="center">
   <strong>Authorization tests for the #1 API vulnerability.</strong><br>
