@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 180" role="img" aria-labelledby="title desc" shape-rendering="crispEdges">
+  <title id="title">AuthzTrace</title>
+  <desc id="desc">AuthzTrace in a modular three-dimensional terminal style.</desc>
+  <defs>
+    <g id="a"><rect x="1" y="0" width="3" height="1"/><rect x="0" y="1" width="1" height="6"/><rect x="4" y="1" width="1" height="6"/><rect x="1" y="3" width="3" height="1"/></g>
+    <g id="u"><rect x="0" y="0" width="1" height="6"/><rect x="4" y="0" width="1" height="6"/><rect x="1" y="6" width="3" height="1"/></g>
+    <g id="t"><rect x="0" y="0" width="5" height="1"/><rect x="2" y="1" width="1" height="6"/></g>
+    <g id="h"><rect x="0" y="0" width="1" height="7"/><rect x="4" y="0" width="1" height="7"/><rect x="1" y="3" width="3" height="1"/></g>
+    <g id="z"><rect x="0" y="0" width="5" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="0" y="5" width="5" height="1"/></g>
+    <g id="r"><rect x="0" y="0" width="1" height="7"/><rect x="1" y="0" width="3" height="1"/><rect x="4" y="1" width="1" height="2"/><rect x="1" y="3" width="3" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="5" width="1" height="2"/></g>
+    <g id="c"><rect x="1" y="0" width="4" height="1"/><rect x="0" y="1" width="1" height="5"/><rect x="1" y="6" width="4" height="1"/></g>
+    <g id="e"><rect x="0" y="0" width="1" height="7"/><rect x="1" y="0" width="4" height="1"/><rect x="1" y="3" width="3" height="1"/><rect x="1" y="6" width="4" height="1"/></g>
+    <g id="word">
+      <use href="#a" transform="translate(110 40) scale(13)"/>
+      <use href="#u" transform="translate(190 40) scale(13)"/>
+      <use href="#t" transform="translate(270 40) scale(13)"/>
+      <use href="#h" transform="translate(350 40) scale(13)"/>
+      <use href="#z" transform="translate(430 40) scale(13)"/>
+      <use href="#t" transform="translate(510 40) scale(13)"/>
+      <use href="#r" transform="translate(590 40) scale(13)"/>
+      <use href="#a" transform="translate(670 40) scale(13)"/>
+      <use href="#c" transform="translate(750 40) scale(13)"/>
+      <use href="#e" transform="translate(830 40) scale(13)"/>
+    </g>
+  </defs>
+  <rect width="1000" height="180" rx="8" fill="#161b22"/>
+  <use href="#word" transform="translate(6 7)" fill="#0d1117"/>
+  <use href="#word" transform="translate(-2 0)" fill="#58a6ff"/>
+  <use href="#word" transform="translate(2 2)" fill="#f0883e"/>
+  <use href="#word" fill="#f0f6fc"/>
+</svg>
