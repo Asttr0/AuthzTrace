@@ -1,10 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Asttr0/AuthzTrace/main/docs/assets/authztrace-banner.svg?v=2" alt="AuthzTrace" width="1000">
-</p>
-
-<p align="center">
-  <strong>Authorization tests for the #1 API vulnerability.</strong><br>
-  Prove in CI that user A can't touch user B's data.
+  <img src="https://raw.githubusercontent.com/Asttr0/AuthzTrace/main/docs/assets/authztrace-banner.svg?v=3" alt="AuthzTrace - authorization contract testing for IDOR and BOLA" width="1000">
 </p>
 
 <p align="center">
@@ -18,102 +13,128 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Asttr0/AuthzTrace/main/docs/assets/authztrace-demo.gif" alt="AuthzTrace detects a BOLA, then passes after the API is fixed" width="900">
+  <a href="#quickstart">Quickstart</a> &middot;
+  <a href="#the-contract">Contract</a> &middot;
+  <a href="#built-for-trustworthy-ci">CI guarantees</a> &middot;
+  <a href="docs/CORPUS.md">Roadmap</a>
 </p>
 
----
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Asttr0/AuthzTrace/main/docs/assets/authztrace-showcase.svg?v=1" alt="AuthzTrace turns an ownership contract into cross-user API checks and a CI verdict" width="1000">
+</p>
 
-Scanners see `GET /api/invoices/inv_123` but never learn that `inv_123` is Alice's and must stay off-limits to Bob. Ownership lives in your business logic, which is exactly why BOLA has stayed #1 on the OWASP API Top 10. AuthzTrace makes you declare it, then generates every cross-user request and fails the build when authorization breaks.
+## What AuthzTrace does
 
-```
-contract  ->  every actor x object check  ->  replayed on your live API  ->  owner allowed, everyone else denied, or CI fails
-```
+**AuthzTrace is an authorization contract test runner for REST APIs.** You describe test identities, object ownership, and expected access once. AuthzTrace expands that contract into owner, cross-user, and anonymous requests against your running API.
 
-## The demo
+> `GET /invoices/inv_A -> 200` means nothing by itself. When the contract says `inv_A` belongs to Alice, the same `200` for Bob is a proven BOLA.
 
-Point it at an API where anyone can read anyone's invoice - green is correctly enforced, red is a proven BOLA:
-
-```diff
-  ACTOR  TARGET  EXPECT  STATUS  METHOD  PATH
-+ alice  alice   allow   200     GET     /api/invoices/inv_alice_001
-- bob    alice   deny    200     GET     /api/invoices/inv_alice_001     <-- BOLA, leaks "Alice private"
-- alice  bob     deny    200     POST    /api/invoices/lookup            <-- BOLA, leaks "Bob private"
-+ anon   alice   deny    401     GET     /api/invoices/inv_alice_001
-+ bob    bob     allow   200     GET     /api/invoices/inv_bob_002
-```
-
-```
-12 passed, 6 failed, 6 skipped, 24 checks   ->  exit 1, pull request blocked
-```
-
-Add the one-line ownership check to your API and run again: `18 passed, 0 failed` -> exit 0. That red-to-green flip is the whole point - a regression test that fails the PR the moment an IDOR comes back.
+| You declare | AuthzTrace generates | CI receives |
+| --- | --- | --- |
+| Actors and credentials | Every actor x object request | A reproducible authorization verdict |
+| Owners and fixture IDs | Owner, cross-user, and anonymous checks | SARIF findings with stable fingerprints |
+| Endpoints and access rules | Status and response-leak assertions | Exit codes that separate findings from broken setup |
 
 ## Quickstart
 
+Install the CLI and scaffold a contract from an OpenAPI document:
+
 ```bash
 pip install authztrace
-authztrace init --from openapi.yaml          # scaffold a contract from your spec
-authztrace run  -c authztrace.yaml --sarif authztrace.sarif
+authztrace init --from openapi.yaml
 ```
 
-In CI:
+Point `base_url` at a running **non-production** API, then add stable test-object IDs and actor credentials. Secrets can stay in environment variables:
 
-```yaml
-- uses: Asttr0/AuthzTrace@v0.3.1
-  with:
-    config: authztrace.yaml
-    sarif: authztrace.sarif
-    strict: "true"
+```bash
+export ALICE_TOKEN="..."
+export BOB_TOKEN="..."
+
+authztrace run -c authztrace.yaml --sarif authztrace.sarif
 ```
 
-Exit `0` clean · `1` finding · `2` broken setup (bad token, unreachable API). A preflight checks that each owner can reach their *own* object first, so an expired token can't fake an all-clear. Safe by default: only `GET / HEAD / OPTIONS` run - `POST / PUT / PATCH / DELETE` are skipped unless you set `safe: true` or pass `--include-unsafe`.
-
-## What it catches
-
-```
-▸  Horizontal IDOR / BOLA        A reads or edits B's object
-▸  Anonymous access              unauthenticated reads of owned objects
-▸  IDs anywhere                  path · query · header · JSON / form body
-▸  Silent data leaks             a 403 that still ships the object
-▸  Admin / shared rules          allow: [admin] · allow: [authenticated]
-▸  Expired-credential false-greens   preflight aborts instead of passing
-```
-
-Planned: nested parent-child ownership · login-flow auth · GraphQL BOLA - roadmap in [docs/CORPUS.md](docs/CORPUS.md).
+No OpenAPI document? Start from the [working example](examples/authztrace.yaml).
 
 <details>
-<summary><b>The contract - one file, every check</b></summary>
+<summary><b>Run it in GitHub Actions</b></summary>
 
 ```yaml
-base_url: https://api.example.com
+permissions:
+  security-events: write
+
+steps:
+  - uses: actions/checkout@v4
+
+  - uses: Asttr0/AuthzTrace@v0.3.1
+    env:
+      ALICE_TOKEN: ${{ secrets.ALICE_TOKEN }}
+      BOB_TOKEN: ${{ secrets.BOB_TOKEN }}
+    with:
+      config: authztrace.yaml
+      sarif: authztrace.sarif
+
+  - uses: github/codeql-action/upload-sarif@v4
+    if: always()
+    with:
+      sarif_file: authztrace.sarif
+```
+
+</details>
+
+## The contract
+
+This contract says Alice and Bob each own one invoice. Owners may read their own invoice; every other identity must be denied without receiving the owner's marker.
+
+```yaml
+base_url: https://api.test.example.com
+
 actors:
   alice: { auth: { type: bearer, token: "${ALICE_TOKEN}" } }
   bob:   { auth: { type: bearer, token: "${BOB_TOKEN}" } }
   anon:  { auth: { type: none } }
+
 resources:
   invoice:
-    ids:     { alice: inv_alice_001, bob: inv_bob_002 }
+    ids:     { alice: inv_A, bob: inv_B }
     markers: { alice: "Alice private", bob: "Bob private" }
     endpoints:
       - request: GET /api/invoices/{id}
         assertions:
-          allow_contains:    ["{marker}"]   # owner must see it
-          deny_not_contains: ["{marker}"]   # nobody else may
+          allow_contains: ["{marker}"]
+          deny_not_contains: ["{marker}"]
+
+policy:
+  default: owner-only
+  deny_status: [401, 403, 404]
 ```
 
-Owners must pass, everyone else must be denied, and a denied response must never contain the owner's marker. IDs can live in the path, query, headers, or JSON / form body, and numeric IDs keep their type. Working example: [examples/authztrace.yaml](examples/authztrace.yaml).
+That single endpoint becomes six checks: three actors x two objects. Alice and Bob must retrieve their own marker; the other user and `anon` must receive a deny status and never see it.
 
-</details>
+Object IDs can also live in query parameters, headers, JSON, or form bodies. Endpoints may allow named actors, `authenticated`, `anonymous`, `owner`, or everyone.
 
-## Why not a scanner
+## Built for trustworthy CI
 
-A crawler can't infer ownership, so it can't tell a `200` that's correct from a `200` that's a breach. AuthzTrace tests over HTTP against a contract that lives next to your code, runs on every pull request, and won't mutate your API by accident. Authorization is business logic - the moat is letting you declare it and proving it every commit.
+| Behavior | Guarantee |
+| --- | --- |
+| Credential preflight | Owners must reach their own fixtures before attack rows run. Broken tokens cannot produce a false green. |
+| Read-only default | Only `GET`, `HEAD`, and `OPTIONS` execute automatically. Other methods are visibly skipped unless marked `safe: true` or enabled with `--include-unsafe`. |
+| Leak detection | A denied response still fails if it contains a forbidden marker or JSON field. |
+| CI-native reports | Terminal, SARIF, JSON, and JUnit output; SARIF includes stable fingerprints for GitHub code scanning. |
+| Flexible authentication | Bearer tokens, custom headers, cookies, Basic auth, and anonymous actors. Tokens are applied at request time and excluded from reports. |
 
-Reports emit SARIF (GitHub code scanning, with stable fingerprints), JSON, and JUnit: `--sarif` `--json` `--junit`.
+| Exit | Meaning |
+| ---: | --- |
+| `0` | Contract proven; no findings |
+| `1` | BOLA, response leak, or strict warning |
+| `2` | Untrustworthy setup: bad credentials, unreadable owner fixture, invalid contract, or unreachable API |
+
+## Current scope
+
+AuthzTrace `0.3.x` is alpha software focused on REST authorization regression testing with stable fixtures and static credentials. Next priorities are login-flow authentication, nested parent/child ownership, and GraphQL BOLA coverage. See the [authorization test corpus](docs/CORPUS.md) for supported and planned cases.
 
 ---
 
 <p align="center">
-  <sub>If AuthzTrace could catch a bug in your API, star the repo so other teams find it.<br>
-  MIT © 2026 Mohamed Taha Slimani · <a href="https://github.com/Asttr0">@Asttr0</a></sub>
+  <sub>Found AuthzTrace useful? Star the repository so more API teams can find it.<br>
+  MIT &copy; 2026 Mohamed Taha Slimani &middot; <a href="https://github.com/Asttr0">@Asttr0</a> &middot; <a href="https://github.com/Asttr0/AuthzTrace/issues">Issues</a></sub>
 </p>

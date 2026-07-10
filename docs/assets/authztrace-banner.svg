@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 180" role="img" aria-labelledby="title desc" shape-rendering="crispEdges">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 280" role="img" aria-labelledby="title desc" shape-rendering="crispEdges">
   <title id="title">AuthzTrace</title>
-  <desc id="desc">AuthzTrace in a modular three-dimensional terminal style.</desc>
+  <desc id="desc">AuthzTrace with an animated authorization testing message.</desc>
   <defs>
     <g id="upper-a"><rect x="1" y="0" width="3" height="1"/><rect x="0" y="1" width="1" height="6"/><rect x="4" y="1" width="1" height="6"/><rect x="1" y="3" width="3" height="1"/></g>
     <g id="lower-u"><rect x="0" y="2" width="1" height="4"/><rect x="4" y="2" width="1" height="4"/><rect x="1" y="6" width="3" height="1"/></g>
@@ -24,10 +24,37 @@
       <use href="#lower-c" transform="translate(750 40) scale(13)"/>
       <use href="#lower-e" transform="translate(830 40) scale(13)"/>
     </g>
+    <clipPath id="typing-line-one">
+      <rect x="145" y="181" width="650" height="32">
+        <animate attributeName="width" dur="9s" repeatCount="indefinite" values="0;0;570;570;570;0" keyTimes="0;0.04;0.38;0.92;0.97;1"/>
+      </rect>
+    </clipPath>
+    <clipPath id="typing-line-two">
+      <rect x="145" y="218" width="650" height="32">
+        <animate attributeName="width" dur="9s" repeatCount="indefinite" values="0;0;0;630;630;0" keyTimes="0;0.38;0.42;0.80;0.92;1"/>
+      </rect>
+    </clipPath>
   </defs>
-  <rect width="1000" height="180" rx="8" fill="#161b22"/>
+  <rect width="1000" height="280" rx="8" fill="#161b22"/>
   <use href="#word" transform="translate(6 7)" fill="#0d1117"/>
   <use href="#word" transform="translate(-2 0)" fill="#58a6ff"/>
   <use href="#word" transform="translate(2 2)" fill="#f0883e"/>
   <use href="#word" fill="#f0f6fc"/>
+  <line x1="100" y1="165" x2="900" y2="165" stroke="#30363d"/>
+  <g font-family="'JetBrainsMono Nerd Font Mono', 'JetBrains Mono', 'Fira Code', monospace" font-size="19">
+    <text x="110" y="204" fill="#58a6ff">&gt;</text>
+    <text x="145" y="204" fill="#f0f6fc" clip-path="url(#typing-line-one)">Authorization tests for the #1 API vulnerability.</text>
+    <text x="110" y="241" fill="#58a6ff">&gt;
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0" keyTimes="0;0.40;0.42;0.96;1" calcMode="discrete"/>
+    </text>
+    <text x="145" y="241" fill="#c9d1d9" clip-path="url(#typing-line-two)">Prove in CI that user A cannot touch user B's data.</text>
+  </g>
+  <rect x="715" y="183" width="10" height="25" fill="#58a6ff" opacity="0">
+    <animate attributeName="x" dur="9s" repeatCount="indefinite" values="145;145;715;715;715;145" keyTimes="0;0.04;0.38;0.40;0.97;1"/>
+    <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="1;1;1;0;0;0" keyTimes="0;0.04;0.38;0.40;0.97;1" calcMode="discrete"/>
+  </rect>
+  <rect x="775" y="220" width="10" height="25" fill="#58a6ff" opacity="0">
+    <animate attributeName="x" dur="9s" repeatCount="indefinite" values="145;145;145;775;775;145" keyTimes="0;0.40;0.42;0.80;0.97;1"/>
+    <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;1;0;0" keyTimes="0;0.40;0.42;0.82;0.86;0.90;0.94;1" calcMode="discrete"/>
+  </rect>
 </svg>
