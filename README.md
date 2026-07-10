@@ -1,4 +1,6 @@
-<h1 align="center">AuthzTrace</h1>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Asttr0/AuthzTrace/main/docs/assets/authztrace-larry3d.svg" alt="AuthzTrace" width="1000">
+</p>
 
 <p align="center">
   <strong>Authorization tests for the #1 API vulnerability.</strong><br>
