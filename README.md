@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Asttr0/AuthzTrace/main/docs/assets/authztrace-banner.svg" alt="AuthzTrace" width="1000">
+  <img src="https://raw.githubusercontent.com/Asttr0/AuthzTrace/main/docs/assets/authztrace-banner.svg?v=2" alt="AuthzTrace" width="1000">
 </p>
 
 <p align="center">

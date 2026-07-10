@@ -2,25 +2,27 @@
   <title id="title">AuthzTrace</title>
   <desc id="desc">AuthzTrace in a modular three-dimensional terminal style.</desc>
   <defs>
-    <g id="a"><rect x="1" y="0" width="3" height="1"/><rect x="0" y="1" width="1" height="6"/><rect x="4" y="1" width="1" height="6"/><rect x="1" y="3" width="3" height="1"/></g>
-    <g id="u"><rect x="0" y="0" width="1" height="6"/><rect x="4" y="0" width="1" height="6"/><rect x="1" y="6" width="3" height="1"/></g>
-    <g id="t"><rect x="0" y="0" width="5" height="1"/><rect x="2" y="1" width="1" height="6"/></g>
-    <g id="h"><rect x="0" y="0" width="1" height="7"/><rect x="4" y="0" width="1" height="7"/><rect x="1" y="3" width="3" height="1"/></g>
-    <g id="z"><rect x="0" y="0" width="5" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="0" y="5" width="5" height="1"/></g>
-    <g id="r"><rect x="0" y="0" width="1" height="7"/><rect x="1" y="0" width="3" height="1"/><rect x="4" y="1" width="1" height="2"/><rect x="1" y="3" width="3" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="5" width="1" height="2"/></g>
-    <g id="c"><rect x="1" y="0" width="4" height="1"/><rect x="0" y="1" width="1" height="5"/><rect x="1" y="6" width="4" height="1"/></g>
-    <g id="e"><rect x="0" y="0" width="1" height="7"/><rect x="1" y="0" width="4" height="1"/><rect x="1" y="3" width="3" height="1"/><rect x="1" y="6" width="4" height="1"/></g>
+    <g id="upper-a"><rect x="1" y="0" width="3" height="1"/><rect x="0" y="1" width="1" height="6"/><rect x="4" y="1" width="1" height="6"/><rect x="1" y="3" width="3" height="1"/></g>
+    <g id="lower-u"><rect x="0" y="2" width="1" height="4"/><rect x="4" y="2" width="1" height="4"/><rect x="1" y="6" width="3" height="1"/></g>
+    <g id="lower-t"><rect x="2" y="0" width="1" height="6"/><rect x="0" y="2" width="5" height="1"/><rect x="3" y="6" width="2" height="1"/></g>
+    <g id="lower-h"><rect x="0" y="0" width="1" height="7"/><rect x="1" y="2" width="3" height="1"/><rect x="4" y="3" width="1" height="4"/></g>
+    <g id="lower-z"><rect x="0" y="2" width="5" height="1"/><polygon points="4,3 5,3 1,6 0,6"/><rect x="0" y="6" width="5" height="1"/></g>
+    <g id="upper-t"><rect x="0" y="0" width="5" height="1"/><rect x="2" y="1" width="1" height="6"/></g>
+    <g id="lower-r"><rect x="0" y="2" width="1" height="5"/><rect x="1" y="2" width="3" height="1"/><rect x="4" y="3" width="1" height="1"/></g>
+    <g id="lower-a"><rect x="1" y="2" width="3" height="1"/><rect x="4" y="3" width="1" height="4"/><rect x="1" y="4" width="3" height="1"/><rect x="0" y="5" width="1" height="1"/><rect x="1" y="6" width="3" height="1"/></g>
+    <g id="lower-c"><rect x="1" y="2" width="4" height="1"/><rect x="0" y="3" width="1" height="3"/><rect x="1" y="6" width="4" height="1"/></g>
+    <g id="lower-e"><rect x="1" y="2" width="3" height="1"/><rect x="0" y="3" width="1" height="3"/><rect x="4" y="3" width="1" height="1"/><rect x="1" y="4" width="4" height="1"/><rect x="1" y="6" width="4" height="1"/></g>
     <g id="word">
-      <use href="#a" transform="translate(110 40) scale(13)"/>
-      <use href="#u" transform="translate(190 40) scale(13)"/>
-      <use href="#t" transform="translate(270 40) scale(13)"/>
-      <use href="#h" transform="translate(350 40) scale(13)"/>
-      <use href="#z" transform="translate(430 40) scale(13)"/>
-      <use href="#t" transform="translate(510 40) scale(13)"/>
-      <use href="#r" transform="translate(590 40) scale(13)"/>
-      <use href="#a" transform="translate(670 40) scale(13)"/>
-      <use href="#c" transform="translate(750 40) scale(13)"/>
-      <use href="#e" transform="translate(830 40) scale(13)"/>
+      <use href="#upper-a" transform="translate(110 40) scale(13)"/>
+      <use href="#lower-u" transform="translate(190 40) scale(13)"/>
+      <use href="#lower-t" transform="translate(270 40) scale(13)"/>
+      <use href="#lower-h" transform="translate(350 40) scale(13)"/>
+      <use href="#lower-z" transform="translate(430 40) scale(13)"/>
+      <use href="#upper-t" transform="translate(510 40) scale(13)"/>
+      <use href="#lower-r" transform="translate(590 40) scale(13)"/>
+      <use href="#lower-a" transform="translate(670 40) scale(13)"/>
+      <use href="#lower-c" transform="translate(750 40) scale(13)"/>
+      <use href="#lower-e" transform="translate(830 40) scale(13)"/>
     </g>
   </defs>
   <rect width="1000" height="180" rx="8" fill="#161b22"/>
