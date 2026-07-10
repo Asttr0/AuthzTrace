@@ -23,58 +23,38 @@
 ## How it works
 
 ```mermaid
-flowchart TB
-    subgraph Contract["1. Authorization contract"]
-        direction LR
-        Actors["Declared actors<br/>and actor authentication"]
-        Objects["Owned fixture IDs<br/>and response markers"]
-        Endpoints["Endpoints, allow rules<br/>and assertions"]
-    end
-
-    Load{"Contract valid?"}
+flowchart LR
+    Contract["1. Contract<br/>actors + IDs + endpoint rules"]
     Matrix["2. Generate matrix<br/>endpoint x object x declared actor"]
-    Filter["Read-only filter<br/>unsafe checks become visible skips"]
-    Preflight{"3. Executable allow rows pass?<br/>status and assertions"}
-    Replay["4. Replay deny rows<br/>against the live API"]
-    Grade{"Status and response body<br/>match the contract?"}
+    Safety["3. Safety gate<br/>record unsafe skips + preflight allow rows"]
+    Replay["4. Live API<br/>replay executable deny rows"]
+    Verdict{"Match contract?"}
 
-    LoadError["Exit 2<br/>contract cannot load"]
-    Setup["Exit 2<br/>executed results are untrustworthy"]
+    Setup["Exit 2<br/>invalid or untrustworthy setup"]
     Finding["Exit 1<br/>BOLA, leak, or strict warning"]
-    Clean["Exit 0<br/>no failing executed checks<br/>warnings and skips remain visible"]
-    Reports["Terminal output<br/>optional SARIF / JSON / JUnit"]
+    Clean["Exit 0<br/>no failing executed checks<br/>warnings and skips stay visible"]
 
-    Actors --> Load
-    Objects --> Load
-    Endpoints --> Load
-    Load -->|valid| Matrix
-    Load -->|invalid| LoadError
-    Matrix --> Filter
-    Filter --> Preflight
-    Filter -. skipped checks .-> Reports
-    Preflight -->|no| Setup
-    Preflight -->|yes| Replay
-    Replay -->|response| Grade
+    Contract -->|valid| Matrix
+    Contract -->|invalid| Setup
+    Matrix --> Safety
+    Safety -->|preflight fails| Setup
+    Safety -->|passes| Replay
     Replay -->|request error| Setup
-    Grade -->|violation or strict warning| Finding
-    Grade -->|pass or non-strict warning| Clean
-    Setup --> Reports
-    Finding --> Reports
-    Clean --> Reports
+    Replay -->|response| Verdict
+    Verdict -->|violation or strict warning| Finding
+    Verdict -->|pass or non-strict warning| Clean
 
     classDef input fill:#161b22,stroke:#58a6ff,color:#f0f6fc,stroke-width:2px;
     classDef process fill:#1f2937,stroke:#8b949e,color:#f0f6fc;
     classDef decision fill:#221b2e,stroke:#d2a8ff,color:#f0f6fc,stroke-width:2px;
     classDef failure fill:#3d1519,stroke:#f85149,color:#ff7b72,stroke-width:2px;
     classDef success fill:#102a18,stroke:#3fb950,color:#56d364,stroke-width:2px;
-    classDef output fill:#0d2238,stroke:#58a6ff,color:#79c0ff;
 
-    class Actors,Objects,Endpoints input;
-    class Matrix,Filter,Replay process;
-    class Load,Preflight,Grade decision;
-    class LoadError,Setup,Finding failure;
+    class Contract input;
+    class Matrix,Safety,Replay process;
+    class Verdict decision;
+    class Setup,Finding failure;
     class Clean success;
-    class Reports output;
 ```
 
 ## What AuthzTrace does
