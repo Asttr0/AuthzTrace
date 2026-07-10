@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Asttr0/AuthzTrace/main/docs/assets/authztrace-larry3d.svg" alt="AuthzTrace" width="860">
-</p>
+<h1 align="center">AuthzTrace</h1>
 
 <p align="center">
   <strong>Authorization tests for the #1 API vulnerability.</strong><br>
@@ -15,6 +13,10 @@
   <a href="https://github.com/marketplace/actions/authztrace"><img src="https://img.shields.io/badge/Marketplace-Action-2088FF?logo=githubactions&logoColor=white" alt="Marketplace"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1f6feb" alt="MIT"></a>
   <a href="https://github.com/Asttr0/AuthzTrace/stargazers"><img src="https://img.shields.io/github/stars/Asttr0/AuthzTrace?style=social" alt="Stars"></a>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Asttr0/AuthzTrace/main/docs/assets/authztrace-demo.gif" alt="AuthzTrace detects a BOLA, then passes after the API is fixed" width="900">
 </p>
 
 ---
