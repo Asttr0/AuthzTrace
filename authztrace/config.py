@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import re
 from typing import Any
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -38,6 +39,31 @@ def _split_request(value: str) -> tuple[str, str]:
         raise ValueError(f"invalid request (expected 'METHOD /path'): {value!r}")
     method, path = parts
     return method.upper(), path
+
+
+def _status_list(value: Any, name: str) -> list[int]:
+    if value is None:
+        return []
+    values = value if isinstance(value, list) else [value]
+    statuses: list[int] = []
+    for item in values:
+        if isinstance(item, bool):
+            raise ValueError(f"{name} must contain HTTP status codes")
+        try:
+            status = int(item)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{name} must contain HTTP status codes") from exc
+        if not 100 <= status <= 599:
+            raise ValueError(f"{name} contains invalid HTTP status {status}")
+        statuses.append(status)
+    return statuses
+
+
+def _reject_unknown_keys(value: dict[str, Any], allowed: set[str], name: str) -> None:
+    unknown = sorted(set(value) - allowed)
+    if unknown:
+        rendered = ", ".join(repr(key) for key in unknown)
+        raise ValueError(f"{name} contains unknown field(s): {rendered}")
 
 
 def _endpoint(raw: Any, name: str) -> Endpoint:
@@ -78,6 +104,176 @@ def _endpoint(raw: Any, name: str) -> Endpoint:
         assertions=spec.pop("assertions", {}) or {},
         safe=safe,
     )
+
+
+def _login_auth(spec: dict[str, Any], actor_name: str) -> dict[str, Any]:
+    request_fields = {
+        "method",
+        "path",
+        "url",
+        "query",
+        "params",
+        "headers",
+        "json",
+        "data",
+        "follow_redirects",
+        "allow_redirects",
+    }
+    _reject_unknown_keys(
+        spec,
+        {"type", "request", "extract", "credential", "expect_status"} | request_fields,
+        f"actor {actor_name!r} login auth",
+    )
+
+    request = spec.get("request")
+    request_spec = {
+        key: spec[key]
+        for key in request_fields
+        if key in spec
+    }
+    if isinstance(request, str):
+        if {"method", "path", "url"} & set(request_spec):
+            raise ValueError(
+                f"actor {actor_name!r} login string request cannot also define method/path/url"
+            )
+        request_spec["request"] = request
+    elif isinstance(request, dict):
+        _reject_unknown_keys(request, request_fields, f"actor {actor_name!r} login request")
+        duplicate = sorted(set(request_spec) & set(request))
+        if duplicate:
+            rendered = ", ".join(repr(key) for key in duplicate)
+            raise ValueError(
+                f"actor {actor_name!r} login request field(s) defined twice: {rendered}"
+            )
+        request_spec.update(request)
+    elif request is not None:
+        raise ValueError(f"actor {actor_name!r} login request must be a string or object")
+
+    if "query" in request_spec and "params" in request_spec:
+        raise ValueError(f"actor {actor_name!r} login request cannot define query and params")
+    if "follow_redirects" in request_spec and "allow_redirects" in request_spec:
+        raise ValueError(
+            f"actor {actor_name!r} login request cannot define both redirect options"
+        )
+
+    url = request_spec.pop("url", None)
+    if url is not None:
+        if request_spec.get("path") or isinstance(request, str):
+            raise ValueError(f"actor {actor_name!r} login request cannot define both path and url")
+        request_spec["path"] = url
+
+    follow_redirects = request_spec.pop(
+        "follow_redirects", request_spec.pop("allow_redirects", True)
+    )
+    if not isinstance(follow_redirects, bool):
+        raise ValueError(f"actor {actor_name!r} login follow_redirects must be true or false")
+
+    endpoint = _endpoint(request_spec, f"{actor_name}.login")
+    if not endpoint.path.startswith("/"):
+        parsed_url = urlsplit(endpoint.path)
+        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+            raise ValueError(
+                f"actor {actor_name!r} login target must be a relative path or HTTP(S) URL"
+            )
+
+    extract = spec.get("extract")
+    if not isinstance(extract, dict):
+        raise ValueError(f"actor {actor_name!r} login auth must define an extract object")
+    extract = dict(extract)
+    source = str(extract.get("from") or "").lower()
+    if source not in {"json", "header", "cookie"}:
+        raise ValueError(
+            f"actor {actor_name!r} login extract.from must be json, header, or cookie"
+        )
+    key = "path" if source == "json" else "name"
+    _reject_unknown_keys(
+        extract,
+        {"from", key},
+        f"actor {actor_name!r} login {source} extract",
+    )
+    if not str(extract.get(key) or ""):
+        raise ValueError(f"actor {actor_name!r} login {source} extract must define {key!r}")
+    extract = {"from": source, key: str(extract[key])}
+
+    credential = spec.get("credential")
+    if isinstance(credential, str):
+        credential = {"type": credential}
+    if not isinstance(credential, dict):
+        raise ValueError(f"actor {actor_name!r} login auth must define a credential object")
+    credential = dict(credential)
+    credential_type = str(credential.get("type") or "").lower()
+    if credential_type not in {"bearer", "header", "cookie"}:
+        raise ValueError(
+            f"actor {actor_name!r} login credential.type must be bearer, header, or cookie"
+        )
+    credential_fields = {
+        "bearer": {"type", "scheme"},
+        "header": {"type", "name", "template"},
+        "cookie": {"type", "name"},
+    }
+    _reject_unknown_keys(
+        credential,
+        credential_fields[credential_type],
+        f"actor {actor_name!r} login {credential_type} credential",
+    )
+    credential = {**credential, "type": credential_type}
+    if credential_type == "bearer" and "scheme" in credential:
+        scheme = str(credential["scheme"]).strip()
+        if not scheme or "\r" in scheme or "\n" in scheme:
+            raise ValueError(f"actor {actor_name!r} login bearer scheme is invalid")
+        credential["scheme"] = scheme
+    if credential_type in {"header", "cookie"}:
+        target_name = credential.get("name")
+        if not target_name and source == credential_type:
+            target_name = extract["name"]
+        if not target_name:
+            raise ValueError(
+                f"actor {actor_name!r} login {credential_type} credential must define 'name'"
+            )
+        target_name = str(target_name)
+        if "\r" in target_name or "\n" in target_name:
+            raise ValueError(
+                f"actor {actor_name!r} login {credential_type} credential name is invalid"
+            )
+        credential["name"] = target_name
+    if credential_type == "header":
+        template = str(credential.get("template") or "{value}")
+        if "{value}" not in template:
+            raise ValueError(
+                f"actor {actor_name!r} login header credential template must contain '{{value}}'"
+            )
+        if "\r" in template or "\n" in template:
+            raise ValueError(f"actor {actor_name!r} login header credential template is invalid")
+        credential["template"] = template
+
+    return {
+        "type": "login",
+        "request": {
+            "method": endpoint.method,
+            "path": endpoint.path,
+            "query": endpoint.query,
+            "headers": endpoint.headers,
+            "json": endpoint.json,
+            "data": endpoint.data,
+            "follow_redirects": follow_redirects,
+        },
+        "extract": extract,
+        "credential": credential,
+        "expect_status": _status_list(
+            spec.get("expect_status"), f"actor {actor_name!r} login expect_status"
+        ),
+    }
+
+
+def _auth(raw: Any, actor_name: str) -> dict[str, Any]:
+    if raw is None:
+        return {"type": "none"}
+    if not isinstance(raw, dict):
+        raise ValueError(f"actor {actor_name!r} auth must be an object")
+    spec = dict(raw)
+    if str(spec.get("type") or "none").lower() == "login":
+        return _login_auth(spec, actor_name)
+    return spec
 
 
 def _context(
@@ -172,7 +368,9 @@ def load_contract(path: str) -> Contract:
 
     actors: dict[str, Actor] = {}
     for name, spec in (raw.get("actors") or {}).items():
-        auth = (spec or {}).get("auth") or {"type": "none"}
+        if spec is not None and not isinstance(spec, dict):
+            raise ValueError(f"actor {name!r} must be an object")
+        auth = _auth((spec or {}).get("auth"), str(name))
         actors[name] = Actor(name=name, auth=auth)
     if not actors:
         raise ValueError("contract must define at least one actor")

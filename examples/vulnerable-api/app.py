@@ -15,6 +15,7 @@ app = Flask(__name__)
 SECURE = os.environ.get("SECURE") == "1"
 
 TOKENS = {"alice-token": "alice", "bob-token": "bob"}
+PASSWORDS = {"alice": "alice-password", "bob": "bob-password"}
 INVOICES = {
     "inv_alice_001": {
         "id": "inv_alice_001",
@@ -38,8 +39,30 @@ def healthz():
 
 def current_user():
     auth = request.headers.get("Authorization", "")
-    token = auth[7:] if auth.startswith("Bearer ") else ""
+    token = auth[7:] if auth.startswith("Bearer ") else request.cookies.get("session", "")
     return TOKENS.get(token)
+
+
+@app.post("/api/login")
+def login():
+    payload = request.get_json(silent=True) or {}
+    username = str(payload.get("username") or "")
+    if not username or PASSWORDS.get(username) != payload.get("password"):
+        return jsonify(error="invalid credentials"), 401
+    token = next(token for token, user in TOKENS.items() if user == username)
+    return jsonify(session={"access_token": token}), 200
+
+
+@app.post("/api/login-cookie")
+def login_cookie():
+    payload = request.get_json(silent=True) or {}
+    username = str(payload.get("username") or "")
+    if not username or PASSWORDS.get(username) != payload.get("password"):
+        return jsonify(error="invalid credentials"), 401
+    token = next(token for token, user in TOKENS.items() if user == username)
+    response = jsonify(authenticated=True)
+    response.set_cookie("session", token, httponly=True, samesite="Lax")
+    return response, 200
 
 
 def _load(user, invoice_id):

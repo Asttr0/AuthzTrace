@@ -22,6 +22,10 @@ Reference: [OWASP API Security Top 10 — API1:2023 Broken Object Level Authoriz
 | 11 | **GraphQL node IDOR** | `node(id:)` / global-id lookups bypass object checks | GraphQL adapter reusing the same contract model | 🔜 roadmap |
 | 12 | **Method override bypass** | `X-HTTP-Method-Override` flips a denied verb to an allowed one | Replay denied checks with override headers | 🔜 roadmap |
 
+## Test identity setup
+
+Actors can use static Bearer, custom-header, cookie, or Basic credentials, or an API login request that extracts a runtime credential from JSON, a response header, or a cookie. Runtime logins support same-origin paths and separate OAuth/identity-provider URLs, happen before authorization preflight in isolated actor sessions, and preserve cookie-jar semantics. A failed login or missing credential is a setup error, so deny rows never run with an untrustworthy identity. See the [authentication guide](AUTHENTICATION.md).
+
 ## Design principle
 
 AuthzTrace never guesses your authorization *rules* — authorization is business

@@ -151,6 +151,27 @@ That single endpoint becomes six checks: one endpoint x two owned objects x thre
 
 Object IDs can also live in query parameters, headers, JSON, or form bodies. Endpoint `allow` rules accept `owner`, named actors, `authenticated`, `anonymous`, `all`, or `*`.
 
+### Runtime login flows
+
+Actors can acquire credentials from the API before preflight instead of receiving a static token. Each actor gets an isolated HTTP session, and a failed login or missing credential aborts the run as untrustworthy setup with exit code `2`.
+
+```yaml
+actors:
+  alice:
+    auth:
+      type: login
+      request: POST /api/login
+      json:
+        username: alice
+        password: "${ALICE_PASSWORD}"
+      extract: { from: json, path: session.access_token }
+      credential: { type: bearer }
+```
+
+`extract.from` accepts `json`, `header`, or `cookie`. JSON extraction uses a dotted `path`; header and cookie extraction use `name`. The resulting credential can be applied as `bearer`, `header`, or `cookie`, and `expect_status` can override the default 2xx login expectation. OAuth-style form payloads, separate HTTP(S) identity-provider URLs, redirect control, and custom token schemes are supported.
+
+Login requests are explicit setup operations and therefore run before the read-only endpoint safety gate, including `POST` logins. Keep targets pointed at controlled non-production environments. See the [authentication guide](docs/AUTHENTICATION.md) and [complete login-flow demo contract](examples/authztrace-login.yaml).
+
 ## Built for trustworthy CI
 
 | Behavior | Guarantee |
@@ -159,7 +180,7 @@ Object IDs can also live in query parameters, headers, JSON, or form bodies. End
 | Read-only default | Only `GET`, `HEAD`, and `OPTIONS` execute automatically. Other methods are visibly skipped unless marked `safe: true` or enabled with `--include-unsafe`. |
 | Leak detection | A denied response still fails if it contains a forbidden marker or JSON field. |
 | CI-native reports | Terminal, SARIF, JSON, and JUnit output; SARIF includes stable fingerprints for GitHub code scanning. |
-| Flexible authentication | Bearer tokens, custom headers, cookies, Basic auth, and anonymous actors. Actor-auth credentials are applied at request time and excluded from reports. |
+| Flexible authentication | Static Bearer, custom-header, cookie, and Basic credentials; anonymous actors; and isolated request-and-extract login flows. Actor credentials are excluded from reports. |
 
 | Exit | Meaning |
 | ---: | --- |
@@ -169,7 +190,7 @@ Object IDs can also live in query parameters, headers, JSON, or form bodies. End
 
 ## Current scope
 
-AuthzTrace `0.3.x` is alpha software focused on REST authorization regression testing with stable fixtures and static credentials. Next priorities are login-flow authentication, nested parent/child ownership, and GraphQL BOLA coverage. See the [authorization test corpus](docs/CORPUS.md) for supported and planned cases.
+AuthzTrace is alpha software focused on REST authorization regression testing with stable fixtures and static or runtime login credentials. Next priorities are nested parent/child ownership and GraphQL BOLA coverage. See the [authorization test corpus](docs/CORPUS.md) for supported and planned cases.
 
 ---
 

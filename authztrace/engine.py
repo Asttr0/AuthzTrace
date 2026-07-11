@@ -3,11 +3,22 @@ from __future__ import annotations
 
 import base64
 import time
+from dataclasses import dataclass
 from typing import Any
 
 import requests
 
 from .models import Check, Contract, Result
+
+_MISSING = object()
+
+
+@dataclass
+class _LoginResult:
+    auth: dict | None
+    status: int | None = None
+    note: str = ""
+    elapsed_ms: int | None = None
 
 
 def _headers(auth: dict) -> dict:
@@ -30,7 +41,7 @@ def _is_allowed_status(contract: Contract, status: int) -> bool:
     return 200 <= status < 300
 
 
-def _field_exists(value: Any, path: str) -> bool:
+def _field_value(value: Any, path: str) -> Any:
     current = value
     for part in path.split("."):
         if isinstance(current, dict) and part in current:
@@ -39,8 +50,131 @@ def _field_exists(value: Any, path: str) -> bool:
         if isinstance(current, list) and part.isdigit() and int(part) < len(current):
             current = current[int(part)]
             continue
-        return False
-    return True
+        return _MISSING
+    return current
+
+
+def _field_exists(value: Any, path: str) -> bool:
+    return _field_value(value, path) is not _MISSING
+
+
+def _login_credential(
+    session: requests.Session,
+    resp: requests.Response,
+    auth: dict,
+) -> tuple[Any, str]:
+    extract = auth["extract"]
+    source = extract["from"]
+    if source == "json":
+        try:
+            body = resp.json()
+        except ValueError:
+            return _MISSING, "response was not valid JSON"
+        value = _field_value(body, extract["path"])
+        location = f"JSON path {extract['path']!r}"
+    elif source == "header":
+        value = resp.headers.get(extract["name"], _MISSING)
+        location = f"response header {extract['name']!r}"
+    else:
+        try:
+            value = resp.cookies.get(extract["name"], _MISSING)
+            if value is _MISSING:
+                value = session.cookies.get(extract["name"], _MISSING)
+        except requests.cookies.CookieConflictError:
+            return _MISSING, f"response cookie {extract['name']!r} was ambiguous"
+        location = f"response cookie {extract['name']!r}"
+
+    if value is _MISSING or value is None or value == "":
+        return _MISSING, f"{location} was missing or empty"
+    return value, ""
+
+
+def _resolved_credential(auth: dict, value: Any) -> dict:
+    credential = auth["credential"]
+    kind = credential["type"]
+    if kind == "bearer":
+        scheme = credential.get("scheme", "Bearer")
+        if scheme != "Bearer":
+            return {
+                "type": "header",
+                "name": "Authorization",
+                "value": f"{scheme} {value}",
+            }
+        return {"type": "bearer", "token": str(value)}
+    if kind == "header":
+        rendered = credential.get("template", "{value}").replace("{value}", str(value))
+        return {"type": "header", "name": credential["name"], "value": rendered}
+    if auth["extract"]["from"] == "cookie" and credential["name"] == auth["extract"]["name"]:
+        return {"type": "none"}
+    return {"type": kind, "name": credential["name"], "value": str(value)}
+
+
+def _login_actor(
+    session: requests.Session,
+    contract: Contract,
+    actor_name: str,
+    timeout: float,
+) -> _LoginResult:
+    auth = contract.actors[actor_name].auth
+    if (auth or {}).get("type", "none") != "login":
+        return _LoginResult(auth=auth)
+
+    request = auth["request"]
+    target = request["path"]
+    url = target if target.startswith(("http://", "https://")) else contract.base_url + target
+    started = time.monotonic()
+    try:
+        resp = session.request(
+            request["method"],
+            url,
+            params=request["query"] or None,
+            headers=request["headers"] or None,
+            json=request["json"],
+            data=request["data"],
+            timeout=timeout,
+            allow_redirects=request["follow_redirects"],
+        )
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+    except requests.RequestException as exc:
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        return _LoginResult(
+            auth=None,
+            note=(
+                f"setup: login for actor {actor_name!r} failed: "
+                f"request error ({type(exc).__name__})"
+            ),
+            elapsed_ms=elapsed_ms,
+        )
+
+    expected = auth["expect_status"]
+    if (expected and resp.status_code not in expected) or (
+        not expected and not 200 <= resp.status_code < 300
+    ):
+        expectation = str(expected) if expected else "a 2xx response"
+        return _LoginResult(
+            auth=None,
+            status=resp.status_code,
+            note=(
+                f"setup: login for actor {actor_name!r} returned HTTP {resp.status_code}; "
+                f"expected {expectation}"
+            ),
+            elapsed_ms=elapsed_ms,
+        )
+
+    value, extraction_error = _login_credential(session, resp, auth)
+    if extraction_error:
+        return _LoginResult(
+            auth=None,
+            status=resp.status_code,
+            note=f"setup: login for actor {actor_name!r} failed: {extraction_error}",
+            elapsed_ms=elapsed_ms,
+        )
+
+    return _LoginResult(
+        auth=_resolved_credential(auth, value),
+        status=resp.status_code,
+        elapsed_ms=elapsed_ms,
+    )
 
 
 def _no_field_failures(resp: requests.Response, check: Check) -> list[str]:
@@ -191,10 +325,10 @@ def _execute_check(
     contract: Contract,
     check: Check,
     timeout: float,
+    auth: dict | None = None,
 ) -> Result:
-    actor = contract.actors[check.actor]
     url = contract.base_url + check.path
-    headers = _headers(actor.auth)
+    headers = _headers(auth if auth is not None else contract.actors[check.actor].auth)
     headers.update(check.headers)
     started = time.monotonic()
     try:
@@ -215,7 +349,7 @@ def _execute_check(
             status=None,
             outcome="error",
             category="setup",
-            note=f"setup: request failed: {exc}",
+            note=f"setup: request failed ({type(exc).__name__})",
             elapsed_ms=elapsed_ms,
         )
 
@@ -247,25 +381,48 @@ def _setup_skipped(check: Check) -> Result:
     )
 
 
-def run(
+def _run_with_sessions(
     contract: Contract,
     checks: list[Check],
-    timeout: float = 10.0,
-    include_unsafe: bool = False,
+    timeout: float,
+    executable_indices: list[int],
+    results_by_index: dict[int, Result],
+    sessions: dict[str, requests.Session],
 ) -> list[Result]:
-    results_by_index: dict[int, Result] = {}
-    executable_indices: list[int] = []
-    session = requests.Session()
+    resolved_auth: dict[str, dict] = {}
+    login_failed = False
+    for actor_name, session in sessions.items():
+        login = _login_actor(session, contract, actor_name, timeout)
+        if login.auth is not None:
+            resolved_auth[actor_name] = login.auth
+            continue
 
-    for idx, check in enumerate(checks):
-        if not include_unsafe and not check.safe:
-            results_by_index[idx] = _unsafe_skipped(check)
-        else:
-            executable_indices.append(idx)
+        login_failed = True
+        actor_indices = [idx for idx in executable_indices if checks[idx].actor == actor_name]
+        failure_idx = next(
+            (idx for idx in actor_indices if checks[idx].expect == "allow"), actor_indices[0]
+        )
+        results_by_index[failure_idx] = Result(
+            check=checks[failure_idx],
+            status=login.status,
+            outcome="error",
+            category="setup",
+            note=login.note,
+            elapsed_ms=login.elapsed_ms,
+        )
+
+    if login_failed:
+        for idx in executable_indices:
+            if idx not in results_by_index:
+                results_by_index[idx] = _setup_skipped(checks[idx])
+        return [results_by_index[idx] for idx in range(len(checks))]
 
     preflight_indices = [idx for idx in executable_indices if checks[idx].expect == "allow"]
     for idx in preflight_indices:
-        results_by_index[idx] = _execute_check(session, contract, checks[idx], timeout)
+        check = checks[idx]
+        results_by_index[idx] = _execute_check(
+            sessions[check.actor], contract, check, timeout, resolved_auth[check.actor]
+        )
 
     preflight_failed = any(
         result.outcome == "error" and result.category == "setup"
@@ -279,6 +436,46 @@ def run(
 
     for idx in executable_indices:
         if idx not in results_by_index:
-            results_by_index[idx] = _execute_check(session, contract, checks[idx], timeout)
+            check = checks[idx]
+            results_by_index[idx] = _execute_check(
+                sessions[check.actor], contract, check, timeout, resolved_auth[check.actor]
+            )
 
     return [results_by_index[idx] for idx in range(len(checks))]
+
+
+def run(
+    contract: Contract,
+    checks: list[Check],
+    timeout: float = 10.0,
+    include_unsafe: bool = False,
+) -> list[Result]:
+    results_by_index: dict[int, Result] = {}
+    executable_indices: list[int] = []
+
+    for idx, check in enumerate(checks):
+        if not include_unsafe and not check.safe:
+            results_by_index[idx] = _unsafe_skipped(check)
+        else:
+            executable_indices.append(idx)
+
+    actor_names = [
+        name
+        for name in contract.actors
+        if any(checks[idx].actor == name for idx in executable_indices)
+    ]
+    sessions: dict[str, requests.Session] = {}
+    try:
+        for actor_name in actor_names:
+            sessions[actor_name] = requests.Session()
+        return _run_with_sessions(
+            contract,
+            checks,
+            timeout,
+            executable_indices,
+            results_by_index,
+            sessions,
+        )
+    finally:
+        for session in sessions.values():
+            session.close()

@@ -108,9 +108,20 @@ jobs:
           json: vulnerable-authztrace.json
           junit: vulnerable-authztrace.xml
 
+      - name: Run login-flow contract against vulnerable API
+        id: login_authztrace
+        continue-on-error: true
+        env:
+          ALICE_PASSWORD: alice-password
+          BOB_PASSWORD: bob-password
+        run: >-
+          authztrace run -c examples/authztrace-login.yaml
+          --json vulnerable-login-authztrace.json --no-color
+
       - name: Validate finding outputs
         run: |
           test "${{ steps.authztrace.outcome }}" = "failure"
+          test "${{ steps.login_authztrace.outcome }}" = "failure"
           python - <<'PY'
           import json
           import xml.etree.ElementTree as ET
@@ -120,6 +131,12 @@ jobs:
           assert report["summary"]["fail"] == 6
           assert report["summary"]["error"] == 0
           assert report["summary"]["skipped"] == 6
+
+          with open("vulnerable-login-authztrace.json", encoding="utf-8") as f:
+              login_report = json.load(f)
+          assert login_report["summary"]["fail"] == 6
+          assert login_report["summary"]["error"] == 0
+          assert login_report["summary"]["skipped"] == 0
 
           with open("vulnerable-authztrace.sarif", encoding="utf-8") as f:
               sarif = json.load(f)
