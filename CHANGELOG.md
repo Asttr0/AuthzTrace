@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 - Unreleased
+
+- Added request-and-extract login authentication with JSON-path, response-header, and cookie credential sources.
+- Added relative and separate HTTP(S) identity-provider targets, OAuth-style form payloads, redirect control, and custom token schemes.
+- Added isolated HTTP sessions per actor so runtime cookies and credentials cannot bleed between test identities.
+- Added cookie-jar preservation, session cleanup, and secret-safe setup errors for failed logins and missing credentials.
+- Added a mixed Bearer-token and session-cookie login demo contract with vulnerable-API CI smoke coverage.
+
 ## 0.3.1 - 2026-07-09
 
 - Added PyPI Trusted Publishing workflow for tag-based releases.

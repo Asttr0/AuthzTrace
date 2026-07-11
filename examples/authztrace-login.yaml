@@ -1,0 +1,60 @@
+# AuthzTrace login-flow contract for examples/vulnerable-api/.
+# The demo passwords are intentionally public test fixtures, not real secrets.
+
+base_url: http://localhost:3000
+
+actors:
+  alice:
+    auth:
+      type: login
+      request: POST /api/login
+      json:
+        username: alice
+        password: "${ALICE_PASSWORD}"
+      extract: { from: json, path: session.access_token }
+      credential: { type: bearer }
+  bob:
+    auth:
+      type: login
+      request: POST /api/login-cookie
+      json:
+        username: bob
+        password: "${BOB_PASSWORD}"
+      extract: { from: cookie, name: session }
+      credential: { type: cookie, name: session }
+  anon:
+    auth: { type: none }
+
+resources:
+  invoice:
+    ids:
+      alice: inv_alice_001
+      bob: inv_bob_002
+    markers:
+      alice: "Alice private invoice"
+      bob: "Bob private invoice"
+    endpoints:
+      - name: read invoice by path id
+        request: GET /api/invoices/{id}
+        assertions:
+          allow_contains: ["{marker}"]
+          deny_not_contains: ["{marker}"]
+      - name: read invoice by query id
+        method: GET
+        path: /api/invoices
+        query: { id: "{id}" }
+        assertions:
+          allow_contains: ["{marker}"]
+          deny_not_contains: ["{marker}"]
+      - name: lookup invoice by JSON body id
+        method: POST
+        path: /api/invoices/lookup
+        safe: true
+        json: { invoice_id: "{id}" }
+        assertions:
+          allow_contains: ["{marker}"]
+          deny_not_contains: ["{marker}"]
+
+policy:
+  default: owner-only
+  deny_status: [401, 403, 404]
