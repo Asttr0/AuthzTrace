@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 - Unreleased
+## 0.4.0 - 2026-07-11
 
 - Added request-and-extract login authentication with JSON-path, response-header, and cookie credential sources.
 - Added relative and separate HTTP(S) identity-provider targets, OAuth-style form payloads, redirect control, and custom token schemes.

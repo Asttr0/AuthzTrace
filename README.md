@@ -104,7 +104,7 @@ steps:
   - uses: actions/checkout@v4
 
   # Start your API here, or point base_url at a reachable test environment.
-  - uses: Asttr0/AuthzTrace@v0.3.1
+  - uses: Asttr0/AuthzTrace@v0.4.0
     env:
       ALICE_TOKEN: ${{ secrets.ALICE_TOKEN }}
       BOB_TOKEN: ${{ secrets.BOB_TOKEN }}
