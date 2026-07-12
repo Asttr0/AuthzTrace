@@ -83,3 +83,66 @@ def test_generated_checks_keep_endpoint_safety_and_template():
     assert check.safe is True
     assert check.path_template == "/api/invoices/lookup"
     assert check.endpoint_name == "lookup"
+
+
+def _nested_contract():
+    return Contract(
+        "http://x",
+        {name: Actor(name) for name in ("alice", "bob")},
+        {
+            "org_user": Resource(
+                name="org_user",
+                target_id="user_id",
+                ids={
+                    "alice": {"org_id": "org_a", "user_id": "user_a"},
+                    "bob": {"org_id": "org_b", "user_id": "user_b"},
+                },
+                endpoints=[
+                    Endpoint(
+                        name="read org user",
+                        method="GET",
+                        path="/orgs/{org_id}/users/{user_id}",
+                        query={"subject": "{user_id}"},
+                        headers={"X-Organization": "{org_id}"},
+                        json={"organization": "{org_id}", "user": "{user_id}"},
+                        data={"target": "{id}"},
+                    )
+                ],
+            )
+        },
+        Policy(),
+    )
+
+
+def test_named_ids_generate_every_parent_child_ownership_permutation():
+    checks = [check for check in generate(_nested_contract()) if check.actor == "alice"]
+
+    assert len(checks) == 4
+    assert {
+        check.relationship: (check.target_owner, check.expect)
+        for check in checks
+    } == {
+        "org_id=alice,user_id=alice": ("alice", "allow"),
+        "org_id=alice,user_id=bob": ("bob", "deny"),
+        "org_id=bob,user_id=alice": ("alice", "deny"),
+        "org_id=bob,user_id=bob": ("bob", "deny"),
+    }
+
+
+def test_named_ids_render_in_every_request_location_and_keep_sources():
+    check = next(
+        check
+        for check in generate(_nested_contract())
+        if check.actor == "alice"
+        and check.relationship == "org_id=bob,user_id=alice"
+    )
+
+    assert check.path == "/orgs/org_b/users/user_a"
+    assert check.query == {"subject": "user_a"}
+    assert check.headers == {"X-Organization": "org_b"}
+    assert check.json == {"organization": "org_b", "user": "user_a"}
+    assert check.data == {"target": "user_a"}
+    assert check.object_id == "user_a"
+    assert check.ids == {"org_id": "org_b", "user_id": "user_a"}
+    assert check.id_sources == {"org_id": "bob", "user_id": "alice"}
+    assert check.name.endswith("[org_id=bob,user_id=alice]")

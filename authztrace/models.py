@@ -46,6 +46,7 @@ class Resource:
     endpoints: list[Endpoint]
     ids: dict[str, Any]
     markers: dict[str, Any] = field(default_factory=dict)
+    target_id: str = "id"
 
 
 @dataclass
@@ -82,6 +83,9 @@ class Check:
     json: Any = None
     data: Any = None
     object_id: str = ""
+    ids: dict[str, Any] = field(default_factory=dict)
+    id_sources: dict[str, str] = field(default_factory=dict)
+    relationship: str = ""
     target_owner: str = ""
     expect: str = "deny"
     assertions: dict[str, Any] = field(default_factory=dict)

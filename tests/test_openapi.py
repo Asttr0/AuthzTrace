@@ -1,4 +1,5 @@
-from authztrace.openapi import generate_contract
+from authztrace.config import load_contract
+from authztrace.openapi import generate_contract, write_contract
 
 
 def test_generates_contract_from_single_id_openapi_path(tmp_path):
@@ -89,3 +90,57 @@ paths:
     contract = generate_contract(str(spec_file), base_url="http://localhost:8000")
 
     assert "access" in contract["resources"]
+
+
+def test_generates_loadable_named_ids_for_nested_openapi_path(tmp_path, monkeypatch):
+    spec_file = tmp_path / "openapi.yaml"
+    spec_file.write_text(
+        """
+openapi: 3.1.0
+paths:
+  /orgs/{org_id}/users/{user_id}:
+    get:
+      operationId: getOrganizationUser
+      parameters:
+        - { name: org_id, in: path, required: true, schema: { type: string } }
+        - { name: user_id, in: path, required: true, schema: { type: string } }
+""",
+        encoding="utf-8",
+    )
+
+    generated = generate_contract(str(spec_file), base_url="http://localhost:8000")
+    resource = generated["resources"]["user_by_org_id_user_id"]
+
+    assert resource == {
+        "target_id": "user_id",
+        "ids": {
+            "alice": {
+                "org_id": "${ALICE_USER_ORG_ID}",
+                "user_id": "${ALICE_USER_USER_ID}",
+            },
+            "bob": {
+                "org_id": "${BOB_USER_ORG_ID}",
+                "user_id": "${BOB_USER_USER_ID}",
+            },
+        },
+        "endpoints": [
+            {
+                "name": "getOrganizationUser",
+                "request": "GET /orgs/{org_id}/users/{user_id}",
+            }
+        ],
+    }
+
+    for name, value in {
+        "ALICE_USER_ORG_ID": "org_a",
+        "ALICE_USER_USER_ID": "user_a",
+        "BOB_USER_ORG_ID": "org_b",
+        "BOB_USER_USER_ID": "user_b",
+    }.items():
+        monkeypatch.setenv(name, value)
+    contract_file = tmp_path / "authztrace.yaml"
+    write_contract(generated, str(contract_file))
+
+    loaded = load_contract(str(contract_file))
+
+    assert loaded.resources["user_by_org_id_user_id"].target_id == "user_id"

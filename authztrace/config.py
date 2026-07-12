@@ -12,6 +12,10 @@ from .models import Actor, Check, Contract, Endpoint, Policy, Resource, effectiv
 from .templating import render
 
 _ENV = re.compile(r"\$\{([A-Z0-9_]+)\}")
+_ID_FIELD = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_TEMPLATE_FIELD = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
+_BUILTIN_FIELDS = {"actor", "owner", "id", "object_id", "resource", "marker"}
+_MISSING = object()
 
 
 def _expand(value):
@@ -64,6 +68,110 @@ def _reject_unknown_keys(value: dict[str, Any], allowed: set[str], name: str) ->
     if unknown:
         rendered = ", ".join(repr(key) for key in unknown)
         raise ValueError(f"{name} contains unknown field(s): {rendered}")
+
+
+def _validate_resource_ids(resource_name: str, ids: dict[str, Any], raw_target: Any) -> str:
+    fixtures = list(ids.items())
+    named = [isinstance(value, dict) for _, value in fixtures]
+    if any(named) and not all(named):
+        raise ValueError(
+            f"resource {resource_name!r} ids must use scalar values for every owner "
+            "or named ID objects for every owner"
+        )
+    if not any(named):
+        target_id = str(raw_target or "id")
+        if target_id != "id":
+            raise ValueError(
+                f"resource {resource_name!r} target_id must be 'id' for scalar fixtures"
+            )
+        return target_id
+
+    if not raw_target:
+        raise ValueError(
+            f"resource {resource_name!r} with named IDs must define target_id"
+        )
+    target_id = str(raw_target)
+    first_owner, first_fixture = fixtures[0]
+    fields = list(first_fixture)
+    if not fields:
+        raise ValueError(
+            f"resource {resource_name!r} fixture for owner {first_owner!r} is empty"
+        )
+    invalid = [
+        field
+        for field in fields
+        if not isinstance(field, str) or not _ID_FIELD.match(field)
+    ]
+    if invalid:
+        raise ValueError(
+            f"resource {resource_name!r} contains invalid named ID field {invalid[0]!r}"
+        )
+    expected = set(fields)
+    for owner, fixture in fixtures:
+        actual = set(fixture)
+        missing = sorted(expected - actual)
+        extra = sorted(actual - expected)
+        if missing:
+            raise ValueError(
+                f"resource {resource_name!r} fixture for owner {owner!r} is missing "
+                f"named ID(s): {', '.join(missing)}"
+            )
+        if extra:
+            raise ValueError(
+                f"resource {resource_name!r} fixture for owner {owner!r} contains unknown "
+                f"named ID(s): {', '.join(extra)}"
+            )
+        for field, value in fixture.items():
+            if value is None or value == "" or isinstance(value, (dict, list)):
+                raise ValueError(
+                    f"resource {resource_name!r} fixture for owner {owner!r} has invalid "
+                    f"value for named ID {field!r}"
+                )
+    if target_id not in expected:
+        raise ValueError(
+            f"resource {resource_name!r} target_id {target_id!r} is not one of "
+            f"{', '.join(fields)}"
+        )
+    return target_id
+
+
+def _strings(value: Any):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _strings(item)
+
+
+def _validate_endpoint_ids(resource: Resource) -> None:
+    first_fixture = next(iter(resource.ids.values()))
+    if not isinstance(first_fixture, dict):
+        return
+    allowed = set(first_fixture) | _BUILTIN_FIELDS
+    for endpoint in resource.endpoints:
+        values = [
+            endpoint.path,
+            endpoint.query,
+            endpoint.headers,
+            endpoint.json,
+            endpoint.data,
+            endpoint.assertions,
+        ]
+        placeholders = {
+            match.group(1)
+            for value in values
+            for text in _strings(value)
+            for match in _TEMPLATE_FIELD.finditer(text)
+        }
+        unknown = sorted(placeholders - allowed)
+        if unknown:
+            raise ValueError(
+                f"resource {resource.name!r} endpoint {endpoint.name!r} references unknown "
+                f"named ID or context field {unknown[0]!r}"
+            )
 
 
 def _endpoint(raw: Any, name: str) -> Endpoint:
@@ -280,19 +388,22 @@ def _context(
     resource: Resource | None,
     actor: str,
     owner: str,
-    object_id: Any,
+    ids: dict[str, Any],
+    target_id: str,
 ) -> dict[str, Any]:
     marker = ""
     if resource and owner:
         marker = resource.markers.get(owner, "")
-    return {
+    context = {
         "actor": actor,
         "owner": owner,
-        "id": object_id,
-        "object_id": object_id,
+        "id": ids.get(target_id, ""),
+        "object_id": ids.get(target_id, ""),
         "resource": resource.name if resource else "",
         "marker": marker,
     }
+    context.update(ids)
+    return context
 
 
 def _explicit_check(spec: dict[str, Any], index: int, resources: dict[str, Resource]) -> Check:
@@ -305,12 +416,23 @@ def _explicit_check(spec: dict[str, Any], index: int, resources: dict[str, Resou
     resource = resources.get(resource_name) if resource_name else None
     owner = str(spec.get("target_owner") or spec.get("owner") or spec.get("target") or "")
 
-    object_id = spec.get("id", "")
-    if object_id == "" and resource and owner:
-        object_id = resource.ids.get(owner, "")
+    fixture = spec.get("ids", _MISSING)
+    if fixture is _MISSING:
+        fixture = spec.get("id", _MISSING)
+    if fixture is _MISSING and resource and owner:
+        fixture = resource.ids.get(owner, "")
+    if fixture is _MISSING:
+        fixture = ""
+    ids = dict(fixture) if isinstance(fixture, dict) else {"id": fixture}
+    target_id = resource.target_id if resource else str(spec.get("target_id") or "id")
+    if target_id not in ids:
+        raise ValueError(
+            f"contract {name!r} does not provide target_id {target_id!r} in its IDs"
+        )
+    object_id = ids[target_id]
 
     params = spec.get("params") or {}
-    ctx = _context(resource, actor, owner, object_id)
+    ctx = _context(resource, actor, owner, ids, target_id)
     ctx.update(params)
 
     request = spec.get("request")
@@ -353,6 +475,13 @@ def _explicit_check(spec: dict[str, Any], index: int, resources: dict[str, Resou
         data=render(endpoint.data, ctx),
         target_owner=owner,
         object_id=str(object_id),
+        ids=ids,
+        id_sources={field: owner for field in ids} if owner else {},
+        relationship=(
+            ",".join(f"{field}={owner}" for field in ids)
+            if owner and len(ids) > 1
+            else ""
+        ),
         expect=str(spec.get("expect") or "deny"),
         assertions=render(endpoint.assertions | (spec.get("assertions") or {}), ctx),
         safe=effective_safe(endpoint.method, endpoint.safe),
@@ -384,7 +513,8 @@ def load_contract(path: str) -> Contract:
         ids = spec.get("ids") or {}
         if not isinstance(ids, dict) or not ids:
             raise ValueError(f"resource {name!r} must define ids by owner")
-        resources[name] = Resource(
+        target_id = _validate_resource_ids(str(name), ids, spec.get("target_id"))
+        resource = Resource(
             name=name,
             endpoints=[
                 _endpoint(endpoint_spec, f"{name}.{idx}")
@@ -392,7 +522,10 @@ def load_contract(path: str) -> Contract:
             ],
             ids=ids,
             markers=spec.get("markers", {}) or {},
+            target_id=target_id,
         )
+        _validate_endpoint_ids(resource)
+        resources[name] = resource
     if not resources:
         raise ValueError("contract must define at least one resource")
 

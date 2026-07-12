@@ -351,3 +351,130 @@ resources:
         "name": "Authorization",
         "template": "Token {value}",
     }
+
+
+def test_loads_named_id_fixtures_and_explicit_nested_check(tmp_path):
+    contract_file = tmp_path / "authztrace.yaml"
+    contract_file.write_text(
+        """
+base_url: http://example.test
+actors:
+  alice: { auth: { type: bearer, token: alice-token } }
+  bob: { auth: { type: bearer, token: bob-token } }
+resources:
+  org_user:
+    target_id: user_id
+    ids:
+      alice: { org_id: org_a, user_id: 101 }
+      bob: { org_id: org_b, user_id: 202 }
+    endpoints:
+      - GET /orgs/{org_id}/users/{user_id}
+contracts:
+  - name: mixed parent and child
+    as: bob
+    resource: org_user
+    target_owner: alice
+    ids: { org_id: org_b, user_id: 101 }
+    request: POST /orgs/{org_id}/users/lookup
+    query: { user: "{user_id}" }
+    headers: { X-Org: "{org_id}" }
+    json: { user_id: "{user_id}" }
+    data: { target: "{id}" }
+    expect: deny
+""",
+        encoding="utf-8",
+    )
+
+    contract = load_contract(str(contract_file))
+    resource = contract.resources["org_user"]
+    check = contract.checks[0]
+
+    assert resource.target_id == "user_id"
+    assert resource.ids["alice"] == {"org_id": "org_a", "user_id": 101}
+    assert check.path == "/orgs/org_b/users/lookup"
+    assert check.query == {"user": 101}
+    assert check.headers == {"X-Org": "org_b"}
+    assert check.json == {"user_id": 101}
+    assert check.data == {"target": 101}
+    assert check.object_id == "101"
+
+
+@pytest.mark.parametrize(
+    ("resource_body", "message"),
+    [
+        (
+            """    ids:
+      alice: { org_id: org_a, user_id: user_a }
+      bob: { org_id: org_b, user_id: user_b }""",
+            "must define target_id",
+        ),
+        (
+            """    target_id: user_id
+    ids:
+      alice: { org_id: org_a, user_id: user_a }
+      bob: { org_id: org_b }""",
+            "missing named ID",
+        ),
+        (
+            """    target_id: account_id
+    ids:
+      alice: { org_id: org_a, user_id: user_a }
+      bob: { org_id: org_b, user_id: user_b }""",
+            "target_id 'account_id' is not one of",
+        ),
+        (
+            """    target_id: user_id
+    ids:
+      alice: { org_id: org_a, user_id: user_a }
+      bob: user_b""",
+            "scalar values for every owner or named ID objects",
+        ),
+        (
+            """    target_id: user_id
+    ids:
+      alice: { org_id: org_a, user_id: '' }
+      bob: { org_id: org_b, user_id: user_b }""",
+            "invalid value for named ID 'user_id'",
+        ),
+    ],
+)
+def test_rejects_invalid_named_id_fixtures(tmp_path, resource_body, message):
+    contract_file = tmp_path / "authztrace.yaml"
+    contract_file.write_text(
+        f"""
+base_url: http://example.test
+actors:
+  alice: {{ auth: {{ type: bearer, token: alice-token }} }}
+resources:
+  org_user:
+{resource_body}
+    endpoints:
+      - GET /orgs/{{org_id}}/users/{{user_id}}
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=message):
+        load_contract(str(contract_file))
+
+
+def test_rejects_unknown_named_id_placeholder(tmp_path):
+    contract_file = tmp_path / "authztrace.yaml"
+    contract_file.write_text(
+        """
+base_url: http://example.test
+actors:
+  alice: { auth: { type: bearer, token: alice-token } }
+resources:
+  org_user:
+    target_id: user_id
+    ids:
+      alice: { org_id: org_a, user_id: user_a }
+    endpoints:
+      - GET /orgs/{organization_id}/users/{user_id}
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="unknown named ID or context field"):
+        load_contract(str(contract_file))

@@ -1,0 +1,20 @@
+base_url: http://localhost:5000
+
+actors:
+  alice: { auth: { type: bearer, token: "${ALICE_TOKEN}" } }
+  bob: { auth: { type: bearer, token: "${BOB_TOKEN}" } }
+  anon: { auth: { type: none } }
+
+resources:
+  org_user:
+    target_id: user_id
+    ids:
+      alice: { org_id: "${ALICE_ORG_ID}", user_id: "${ALICE_USER_ID}" }
+      bob: { org_id: "${BOB_ORG_ID}", user_id: "${BOB_USER_ID}" }
+    endpoints:
+      - name: read organization user
+        request: GET /api/orgs/{org_id}/users/{user_id}
+        allow: [owner]
+
+policy:
+  deny_status: [401, 403, 404]

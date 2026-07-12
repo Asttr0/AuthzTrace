@@ -4,7 +4,8 @@ import pytest
 import requests
 
 from authztrace.engine import run
-from authztrace.models import Actor, Check, Contract, Policy, Resource
+from authztrace.matrix import generate
+from authztrace.models import Actor, Check, Contract, Endpoint, Policy, Resource
 from authztrace.report import to_json
 
 
@@ -410,3 +411,42 @@ def test_missing_or_unreachable_login_is_a_setup_error(monkeypatch, login_respon
     assert result.category == "setup"
     assert result.note.startswith("setup: login for actor 'alice' failed:")
     assert "identity service unavailable" not in result.note
+
+
+def test_nested_matrix_executes_each_parent_child_mismatch(monkeypatch):
+    contract = Contract(
+        base_url="http://api.test",
+        actors={"alice": Actor("alice", {"type": "bearer", "token": "alice-token"})},
+        resources={
+            "org_user": Resource(
+                name="org_user",
+                target_id="user_id",
+                ids={
+                    "alice": {"org_id": "org_a", "user_id": "user_a"},
+                    "bob": {"org_id": "org_b", "user_id": "user_b"},
+                },
+                endpoints=[
+                    Endpoint(
+                        name="read org user",
+                        method="GET",
+                        path="/orgs/{org_id}/users/{user_id}",
+                    )
+                ],
+            )
+        },
+        policy=Policy(),
+    )
+    session = FakeSession(
+        [FakeResponse(200), FakeResponse(403), FakeResponse(403), FakeResponse(403)]
+    )
+    monkeypatch.setattr("authztrace.engine.requests.Session", lambda: session)
+
+    results = run(contract, generate(contract))
+
+    assert [result.outcome for result in results] == ["pass", "pass", "pass", "pass"]
+    assert [call[1] for call in session.calls] == [
+        "http://api.test/orgs/org_a/users/user_a",
+        "http://api.test/orgs/org_a/users/user_b",
+        "http://api.test/orgs/org_b/users/user_a",
+        "http://api.test/orgs/org_b/users/user_b",
+    ]

@@ -101,6 +101,9 @@ def to_json(results: list[Result]) -> str:
                 "target_owner": r.check.target_owner,
                 "resource": r.check.resource,
                 "object_id": r.check.object_id,
+                "ids": r.check.ids,
+                "id_sources": r.check.id_sources,
+                "relationship": r.check.relationship,
                 "expect": r.check.expect,
                 "request": {
                     "method": r.check.method,
@@ -169,16 +172,17 @@ def _owner_relationship(result: Result) -> str:
 def _fingerprint(result: Result) -> str:
     check = result.check
     endpoint_id = check.path_template or check.endpoint_name or check.path
-    raw = "\n".join(
-        [
-            _finding_rule_id(result),
-            check.method,
-            endpoint_id,
-            check.resource,
-            check.actor,
-            _owner_relationship(result),
-        ]
-    )
+    parts = [
+        _finding_rule_id(result),
+        check.method,
+        endpoint_id,
+        check.resource,
+        check.actor,
+        _owner_relationship(result),
+    ]
+    if check.relationship:
+        parts.append(check.relationship)
+    raw = "\n".join(parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
 
 

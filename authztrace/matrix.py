@@ -6,7 +6,10 @@ product from a few lines of ownership declaration.
 """
 from __future__ import annotations
 
-from .models import Check, Contract, Endpoint, effective_safe
+from itertools import product
+from typing import Any
+
+from .models import Check, Contract, Endpoint, Resource, effective_safe
 from .templating import render
 
 
@@ -27,15 +30,45 @@ def _is_allowed(contract: Contract, endpoint: Endpoint, actor: str, owner: str) 
     return actor.lower() in allow
 
 
-def _context(resource: str, actor: str, owner: str, object_id: object, marker: object) -> dict:
-    return {
+def _context(
+    resource: str,
+    actor: str,
+    owner: str,
+    ids: dict[str, Any],
+    target_id: str,
+    marker: object,
+) -> dict[str, Any]:
+    context = {
         "resource": resource,
         "actor": actor,
         "owner": owner,
-        "id": object_id,
-        "object_id": object_id,
+        "id": ids[target_id],
+        "object_id": ids[target_id],
         "marker": marker,
     }
+    context.update(ids)
+    return context
+
+
+def _variants(resource: Resource):
+    owners = list(resource.ids)
+    first_fixture = resource.ids[owners[0]]
+    if not isinstance(first_fixture, dict):
+        for owner, object_id in resource.ids.items():
+            yield {"id": object_id}, {"id": owner}, owner, True, ""
+        return
+
+    fields = list(first_fixture)
+    for source_tuple in product(owners, repeat=len(fields)):
+        sources = dict(zip(fields, source_tuple))
+        ids = {
+            field: resource.ids[source_owner][field]
+            for field, source_owner in sources.items()
+        }
+        target_owner = sources[resource.target_id]
+        coherent = len(set(source_tuple)) == 1
+        relationship = ",".join(f"{field}={sources[field]}" for field in fields)
+        yield ids, sources, target_owner, coherent, relationship
 
 
 def generate(contract: Contract) -> list[Check]:
@@ -43,20 +76,24 @@ def generate(contract: Contract) -> list[Check]:
     checks: list[Check] = []
     for res in contract.resources.values():
         for endpoint in res.endpoints:
-            for owner, object_id in res.ids.items():
+            for ids, id_sources, owner, coherent, relationship in _variants(res):
                 ctx_base = _context(
                     resource=res.name,
                     actor="",
                     owner=owner,
-                    object_id=object_id,
+                    ids=ids,
+                    target_id=res.target_id,
                     marker=res.markers.get(owner, ""),
                 )
                 for actor_name in contract.actors:
                     ctx = dict(ctx_base)
                     ctx["actor"] = actor_name
+                    relation_suffix = f" [{relationship}]" if relationship else ""
                     checks.append(
                         Check(
-                            name=f"{endpoint.name}: {actor_name} -> {owner}",
+                            name=(
+                                f"{endpoint.name}: {actor_name} -> {owner}{relation_suffix}"
+                            ),
                             resource=res.name,
                             actor=actor_name,
                             method=endpoint.method,
@@ -68,10 +105,14 @@ def generate(contract: Contract) -> list[Check]:
                             json=render(endpoint.json, ctx),
                             data=render(endpoint.data, ctx),
                             target_owner=owner,
-                            object_id=str(object_id),
+                            object_id=str(ids[res.target_id]),
+                            ids=dict(ids),
+                            id_sources=dict(id_sources),
+                            relationship=relationship,
                             expect=(
                                 "allow"
-                                if _is_allowed(contract, endpoint, actor_name, owner)
+                                if coherent
+                                and _is_allowed(contract, endpoint, actor_name, owner)
                                 else "deny"
                             ),
                             assertions=render(endpoint.assertions, ctx),

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 - 2026-07-12
+
+- Added named multi-ID fixtures for nested resources such as `/orgs/{org_id}/users/{user_id}` while preserving scalar `{id}` contracts.
+- Added full parent/child ownership permutations, including valid-parent/foreign-child and foreign-parent/valid-child checks.
+- Added `target_id` to identify the protected child and deterministic relationship labels in check names and JSON reports.
+- Added stable relationship-aware SARIF fingerprints that do not depend on concrete fixture IDs.
+- Added actionable validation for mixed, incomplete, empty, or unknown named ID fixtures and placeholders.
+- Added OpenAPI scaffolding for routes with multiple path parameters.
+
 ## 0.4.0 - 2026-07-11
 
 - Added request-and-extract login authentication with JSON-path, response-header, and cookie credential sources.

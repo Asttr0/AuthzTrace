@@ -25,7 +25,7 @@
 ```mermaid
 flowchart LR
     Contract["1. Contract<br/>actors + IDs + endpoint rules"]
-    Matrix["2. Generate matrix<br/>endpoint x object x declared actor"]
+    Matrix["2. Generate matrix<br/>endpoint x ID relationship x actor"]
     Safety["3. Safety gate<br/>record unsafe skips + preflight allow rows"]
     Replay["4. Live API<br/>replay executable deny rows"]
     Verdict{"Match contract?"}
@@ -66,7 +66,7 @@ flowchart LR
 | You declare | AuthzTrace generates | CI receives |
 | --- | --- | --- |
 | Actors and credentials | Every endpoint x object x declared actor request | A reproducible authorization verdict |
-| Owners and fixture IDs | Owner, cross-user, and declared anonymous checks | SARIF findings with stable fingerprints |
+| Owners and scalar or named fixture IDs | Owner, cross-user, nested-relationship, and anonymous checks | SARIF findings with stable fingerprints |
 | Endpoints and access rules | Status and response-leak assertions | Exit codes that separate findings from broken setup |
 
 ## Quickstart
@@ -78,7 +78,7 @@ pip install authztrace
 authztrace init --from openapi.yaml
 ```
 
-The OpenAPI command is a starting point, not authorization inference. It scaffolds single-object routes with one path parameter, or query parameters named `id` / `object_id`; review the result and add unsupported or nested routes manually.
+The OpenAPI command is a starting point, not authorization inference. It scaffolds single-object routes, nested routes with multiple path parameters, and query parameters named `id` / `object_id`. Review the generated ownership and access rules before running it.
 
 Point `base_url` at a running **non-production** API, then add stable test-object IDs and actor credentials. Secrets can stay in environment variables:
 
@@ -104,7 +104,7 @@ steps:
   - uses: actions/checkout@v4
 
   # Start your API here, or point base_url at a reachable test environment.
-  - uses: Asttr0/AuthzTrace@v0.4.0
+  - uses: Asttr0/AuthzTrace@v0.5.0
     env:
       ALICE_TOKEN: ${{ secrets.ALICE_TOKEN }}
       BOB_TOKEN: ${{ secrets.BOB_TOKEN }}
@@ -151,6 +151,27 @@ That single endpoint becomes six checks: one endpoint x two owned objects x thre
 
 Object IDs can also live in query parameters, headers, JSON, or form bodies. Endpoint `allow` rules accept `owner`, named actors, `authenticated`, `anonymous`, `all`, or `*`.
 
+<details>
+<summary><b>Test nested parent/child ownership</b></summary>
+
+Name each ID and set `target_id` to the protected child:
+
+```yaml
+resources:
+  org_user:
+    target_id: user_id
+    ids:
+      alice: { org_id: org_A, user_id: user_A }
+      bob:   { org_id: org_B, user_id: user_B }
+    endpoints:
+      - request: GET /api/orgs/{org_id}/users/{user_id}
+        allow: [owner]
+```
+
+For Alice, AuthzTrace checks `(org_A, user_A)` as allowed and requires denial for `(org_A, user_B)`, `(org_B, user_A)`, and `(org_B, user_B)`. Named IDs work in paths, queries, headers, JSON, and form bodies. See the [complete nested example](examples/authztrace-nested.yaml).
+
+</details>
+
 ### Runtime login flows
 
 Actors can acquire credentials from the API before preflight instead of receiving a static token. Each actor gets an isolated HTTP session, and a failed login or missing credential aborts the run as untrustworthy setup with exit code `2`.
@@ -190,7 +211,7 @@ Login requests are explicit setup operations and therefore run before the read-o
 
 ## Current scope
 
-AuthzTrace is alpha software focused on REST authorization regression testing with stable fixtures and static or runtime login credentials. Next priorities are nested parent/child ownership and GraphQL BOLA coverage. See the [authorization test corpus](docs/CORPUS.md) for supported and planned cases.
+AuthzTrace is alpha software focused on REST authorization regression testing with stable fixtures and static or runtime login credentials. It supports scalar objects and nested parent/child ownership; method-override, predictable-ID, mass-assignment, and GraphQL coverage remain planned. See the [authorization test corpus](docs/CORPUS.md) for the full status.
 
 ---
 

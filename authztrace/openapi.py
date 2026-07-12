@@ -55,9 +55,33 @@ def _first_server_url(spec: dict[str, Any]) -> str | None:
     return None
 
 
-def _env_name(resource: str, owner: str) -> str:
+def _template_name(value: str) -> str:
+    name = re.sub(r"[^A-Za-z0-9_]", "_", value)
+    if not name or name[0].isdigit():
+        name = "_" + name
+    return name
+
+
+def _env_name(resource: str, owner: str, field: str | None = None) -> str:
     safe = re.sub(r"[^A-Za-z0-9]+", "_", resource).strip("_").upper() or "RESOURCE"
+    if field:
+        suffix = re.sub(r"[^A-Za-z0-9]+", "_", field).strip("_").upper()
+        return f"${{{owner.upper()}_{safe}_{suffix}}}"
     return f"${{{owner.upper()}_{safe}_ID}}"
+
+
+def _nested_resource_spec(resource: str, fields: list[str]) -> dict[str, Any]:
+    return {
+        "target_id": fields[-1],
+        "ids": {
+            owner: {
+                field: _env_name(resource, owner, field)
+                for field in fields
+            }
+            for owner in ("alice", "bob")
+        },
+        "endpoints": [],
+    }
 
 
 def generate_contract(spec_path: str, base_url: str | None = None) -> dict[str, Any]:
@@ -82,6 +106,33 @@ def generate_contract(spec_path: str, base_url: str | None = None) -> dict[str, 
                     "name": operation.get("operationId") or f"{method.upper()} {raw_path}",
                     "request": f"{method.upper()} {raw_path.replace('{' + param + '}', '{id}')}",
                 }
+                resource_spec = resources.setdefault(
+                    resource,
+                    {
+                        "ids": {
+                            "alice": _env_name(resource, "alice"),
+                            "bob": _env_name(resource, "bob"),
+                        },
+                        "endpoints": [],
+                    },
+                )
+            elif len(path_params) > 1:
+                fields = [_template_name(param) for param in path_params]
+                base_resource = _resource_name(raw_path, path_params[-1])
+                resource = f"{base_resource}_by_{'_'.join(fields)}"
+                rendered_path = raw_path
+                for raw_param, field in zip(path_params, fields):
+                    rendered_path = rendered_path.replace(
+                        "{" + raw_param + "}", "{" + field + "}"
+                    )
+                endpoint = {
+                    "name": operation.get("operationId") or f"{method.upper()} {raw_path}",
+                    "request": f"{method.upper()} {rendered_path}",
+                }
+                resource_spec = resources.setdefault(
+                    resource,
+                    _nested_resource_spec(base_resource, fields),
+                )
             else:
                 query_id = None
                 for param in _operation_parameters(path_item, operation):
@@ -97,24 +148,23 @@ def generate_contract(spec_path: str, base_url: str | None = None) -> dict[str, 
                         "path": raw_path,
                         "query": {query_id: "{id}"},
                     }
+                    resource_spec = resources.setdefault(
+                        resource,
+                        {
+                            "ids": {
+                                "alice": _env_name(resource, "alice"),
+                                "bob": _env_name(resource, "bob"),
+                            },
+                            "endpoints": [],
+                        },
+                    )
 
             if not endpoint or not resource:
                 continue
-
-            resource_spec = resources.setdefault(
-                resource,
-                {
-                    "ids": {
-                        "alice": _env_name(resource, "alice"),
-                        "bob": _env_name(resource, "bob"),
-                    },
-                    "endpoints": [],
-                },
-            )
             resource_spec["endpoints"].append(endpoint)
 
     if not resources:
-        raise ValueError("no single-object endpoints found in OpenAPI spec")
+        raise ValueError("no object endpoints found in OpenAPI spec")
 
     return {
         "base_url": base_url or _first_server_url(spec) or "http://localhost:3000",
@@ -124,7 +174,7 @@ def generate_contract(spec_path: str, base_url: str | None = None) -> dict[str, 
             "anon": {"auth": {"type": "none"}},
         },
         "resources": resources,
-        "policy": {"default": "owner-only", "deny_status": [401, 403, 404]},
+        "policy": {"deny_status": [401, 403, 404]},
     }
 
 

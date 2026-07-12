@@ -1,6 +1,6 @@
 [project]
 name = "authztrace"
-version = "0.4.0"
+version = "0.5.0"
 description = "Authorization contract testing for IDOR/BOLA — prove user A can't touch user B's objects, in CI."
 readme = "README.md"
 requires-python = ">=3.9"
