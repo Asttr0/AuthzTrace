@@ -71,14 +71,41 @@ flowchart LR
 
 ## Quickstart
 
-Install the CLI and scaffold a contract from an OpenAPI document:
+Install the CLI:
 
 ```bash
 pip install authztrace
+```
+
+For a FastAPI project, discover routes and authorization evidence directly from source. An OpenAPI document is optional, but gives AuthzTrace the authoritative public route paths and server URL:
+
+```bash
+authztrace init --from-source . --openapi openapi.yaml
+```
+
+AuthzTrace statically reads the code without importing the application. It confirms route and identifier facts, suggests `owner` only when it finds a supported ownership comparison, and asks you to review every remaining policy. It writes the executable contract to `authztrace.yaml` and provenance to `authztrace.evidence.json`.
+
+For automation, probable owner policies can be accepted explicitly. If any endpoint is still unresolved, this exits `2` and does not write a contract:
+
+```bash
+authztrace init --from-source . --accept-probable --non-interactive
+```
+
+On later runs, preserve reviewed decisions by endpoint identity. New or renamed endpoints still require review:
+
+```bash
+authztrace init --from-source . \
+  --decisions authztrace.evidence.json \
+  --non-interactive --force
+```
+
+For other frameworks, scaffold from OpenAPI and review the generated ownership rules:
+
+```bash
 authztrace init --from openapi.yaml
 ```
 
-The OpenAPI command is a starting point, not authorization inference. It scaffolds single-object routes, nested routes with multiple path parameters, and query parameters named `id` / `object_id`. Review the generated ownership and access rules before running it.
+See [source inference](docs/SOURCE_INFERENCE.md) for the supported FastAPI patterns and trust model.
 
 Point `base_url` at a running **non-production** API, then add stable test-object IDs and actor credentials. Secrets can stay in environment variables:
 
@@ -104,7 +131,7 @@ steps:
   - uses: actions/checkout@v4
 
   # Start your API here, or point base_url at a reachable test environment.
-  - uses: Asttr0/AuthzTrace@v0.5.0
+  - uses: Asttr0/AuthzTrace@v0.6.0
     env:
       ALICE_TOKEN: ${{ secrets.ALICE_TOKEN }}
       BOB_TOKEN: ${{ secrets.BOB_TOKEN }}
@@ -211,7 +238,7 @@ Login requests are explicit setup operations and therefore run before the read-o
 
 ## Current scope
 
-AuthzTrace is alpha software focused on REST authorization regression testing with stable fixtures and static or runtime login credentials. It supports scalar objects and nested parent/child ownership; method-override, predictable-ID, mass-assignment, and GraphQL coverage remain planned. See the [authorization test corpus](docs/CORPUS.md) for the full status.
+AuthzTrace is alpha software focused on REST authorization regression testing with stable fixtures and static or runtime login credentials. It supports scalar objects, nested parent/child ownership, OpenAPI scaffolding, and reviewed FastAPI source inference. Source inference currently recognizes static router declarations, path/query IDs, common SQLAlchemy lookups, and direct ownership comparisons; dynamic route registration, arbitrary service-layer policy, request-body inference, and other frameworks remain unsupported. Method-override, predictable-ID, mass-assignment, and GraphQL coverage remain planned. See the [authorization test corpus](docs/CORPUS.md) for the full status.
 
 ---
 

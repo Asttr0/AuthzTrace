@@ -34,8 +34,9 @@ Concrete IDs appear in JSON output for debugging. SARIF fingerprints use the end
 
 ## Design principle
 
-AuthzTrace never guesses your authorization *rules* — authorization is business
-logic and a scanner can't infer it. You declare ownership and policy in a few
-lines; AuthzTrace does the tedious, error-prone part: the full cross-identity
-permutation, on every endpoint, every run, in CI. That declaration is also the
-moat — it is exactly why generic DAST scanners miss BOLA and why this stays useful.
+AuthzTrace never silently guesses your authorization *rules*. Source inference
+can confirm structural facts and identify probable ownership comparisons, but
+authorization intent remains a reviewed decision. In particular, a missing guard
+is unresolved rather than evidence that cross-user access is intended. Once that
+policy is confirmed, AuthzTrace does the tedious, error-prone part: the full
+cross-identity permutation on every endpoint, every run, in CI.

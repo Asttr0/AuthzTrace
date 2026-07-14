@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0 - 2026-07-14
+
+- Added `authztrace init --from-source` for deterministic, non-executing FastAPI source discovery.
+- Added framework-neutral evidence records for routes, identifiers, authentication dependencies, resource lookups, and probable ownership comparisons.
+- Added review-gated policy compilation: missing ownership guards remain unresolved instead of being interpreted as intended access.
+- Added `--accept-probable` and `--non-interactive`; unresolved non-interactive generation exits `2` without writing a runnable contract.
+- Added optional OpenAPI reconciliation so the published route inventory and source-level authorization evidence can be combined.
+- Added source provenance JSON with repository-relative locations and no source text or credentials.
+- Added `--decisions` to reuse reviewed policies by endpoint identity while leaving new routes unresolved.
+- Added support for router prefixes, imported `include_router` prefixes, path and query IDs, nested IDs, common SQLAlchemy lookups, and direct ownership comparisons.
+
 ## 0.5.0 - 2026-07-12
 
 - Added named multi-ID fixtures for nested resources such as `/orgs/{org_id}/users/{user_id}` while preserving scalar `{id}` contracts.

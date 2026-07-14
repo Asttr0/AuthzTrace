@@ -8,11 +8,13 @@ from typing import Any
 
 import yaml
 
+from .scaffold import env_name, nested_resource_spec, resource_name, template_name
+
 _METHODS = {"get", "post", "put", "patch", "delete", "head", "options"}
 _PATH_PARAM = re.compile(r"\{([^{}]+)\}")
 
 
-def _read_spec(path: str) -> dict[str, Any]:
+def read_spec(path: str) -> dict[str, Any]:
     text = Path(path).read_text(encoding="utf-8")
     if path.endswith(".json"):
         return json.loads(text)
@@ -22,17 +24,7 @@ def _read_spec(path: str) -> dict[str, Any]:
     return data
 
 
-def _resource_name(path: str, param: str) -> str:
-    parts = [part for part in path.strip("/").split("/") if part]
-    marker = "{" + param + "}"
-    if marker in parts:
-        idx = parts.index(marker)
-        if idx > 0:
-            return re.sub(r"(?<!s)s$", "", parts[idx - 1].replace("-", "_")) or "resource"
-    return param.removesuffix("_id").removesuffix("Id").replace("-", "_") or "resource"
-
-
-def _operation_parameters(
+def operation_parameters(
     path_item: dict[str, Any],
     operation: dict[str, Any],
 ) -> list[dict[str, Any]]:
@@ -46,7 +38,7 @@ def _operation_parameters(
     return params
 
 
-def _first_server_url(spec: dict[str, Any]) -> str | None:
+def first_server_url(spec: dict[str, Any]) -> str | None:
     servers = spec.get("servers") or []
     if servers and isinstance(servers[0], dict):
         url = servers[0].get("url")
@@ -55,37 +47,8 @@ def _first_server_url(spec: dict[str, Any]) -> str | None:
     return None
 
 
-def _template_name(value: str) -> str:
-    name = re.sub(r"[^A-Za-z0-9_]", "_", value)
-    if not name or name[0].isdigit():
-        name = "_" + name
-    return name
-
-
-def _env_name(resource: str, owner: str, field: str | None = None) -> str:
-    safe = re.sub(r"[^A-Za-z0-9]+", "_", resource).strip("_").upper() or "RESOURCE"
-    if field:
-        suffix = re.sub(r"[^A-Za-z0-9]+", "_", field).strip("_").upper()
-        return f"${{{owner.upper()}_{safe}_{suffix}}}"
-    return f"${{{owner.upper()}_{safe}_ID}}"
-
-
-def _nested_resource_spec(resource: str, fields: list[str]) -> dict[str, Any]:
-    return {
-        "target_id": fields[-1],
-        "ids": {
-            owner: {
-                field: _env_name(resource, owner, field)
-                for field in fields
-            }
-            for owner in ("alice", "bob")
-        },
-        "endpoints": [],
-    }
-
-
 def generate_contract(spec_path: str, base_url: str | None = None) -> dict[str, Any]:
-    spec = _read_spec(spec_path)
+    spec = read_spec(spec_path)
     resources: dict[str, dict[str, Any]] = {}
 
     for raw_path, path_item in (spec.get("paths") or {}).items():
@@ -101,7 +64,7 @@ def generate_contract(spec_path: str, base_url: str | None = None) -> dict[str, 
 
             if len(path_params) == 1:
                 param = path_params[0]
-                resource = _resource_name(raw_path, param)
+                resource = resource_name(raw_path, param)
                 endpoint = {
                     "name": operation.get("operationId") or f"{method.upper()} {raw_path}",
                     "request": f"{method.upper()} {raw_path.replace('{' + param + '}', '{id}')}",
@@ -110,15 +73,15 @@ def generate_contract(spec_path: str, base_url: str | None = None) -> dict[str, 
                     resource,
                     {
                         "ids": {
-                            "alice": _env_name(resource, "alice"),
-                            "bob": _env_name(resource, "bob"),
+                            "alice": env_name(resource, "alice"),
+                            "bob": env_name(resource, "bob"),
                         },
                         "endpoints": [],
                     },
                 )
             elif len(path_params) > 1:
-                fields = [_template_name(param) for param in path_params]
-                base_resource = _resource_name(raw_path, path_params[-1])
+                fields = [template_name(param) for param in path_params]
+                base_resource = resource_name(raw_path, path_params[-1])
                 resource = f"{base_resource}_by_{'_'.join(fields)}"
                 rendered_path = raw_path
                 for raw_param, field in zip(path_params, fields):
@@ -131,17 +94,17 @@ def generate_contract(spec_path: str, base_url: str | None = None) -> dict[str, 
                 }
                 resource_spec = resources.setdefault(
                     resource,
-                    _nested_resource_spec(base_resource, fields),
+                    nested_resource_spec(base_resource, fields),
                 )
             else:
                 query_id = None
-                for param in _operation_parameters(path_item, operation):
+                for param in operation_parameters(path_item, operation):
                     name = str(param.get("name") or "")
                     if param.get("in") == "query" and name.lower() in {"id", "object_id"}:
                         query_id = name
                         break
                 if query_id:
-                    resource = _resource_name(raw_path + "/{" + query_id + "}", query_id)
+                    resource = resource_name(raw_path + "/{" + query_id + "}", query_id)
                     endpoint = {
                         "name": operation.get("operationId") or f"{method.upper()} {raw_path}",
                         "method": method.upper(),
@@ -152,8 +115,8 @@ def generate_contract(spec_path: str, base_url: str | None = None) -> dict[str, 
                         resource,
                         {
                             "ids": {
-                                "alice": _env_name(resource, "alice"),
-                                "bob": _env_name(resource, "bob"),
+                                "alice": env_name(resource, "alice"),
+                                "bob": env_name(resource, "bob"),
                             },
                             "endpoints": [],
                         },
@@ -167,7 +130,7 @@ def generate_contract(spec_path: str, base_url: str | None = None) -> dict[str, 
         raise ValueError("no object endpoints found in OpenAPI spec")
 
     return {
-        "base_url": base_url or _first_server_url(spec) or "http://localhost:3000",
+        "base_url": base_url or first_server_url(spec) or "http://localhost:3000",
         "actors": {
             "alice": {"auth": {"type": "bearer", "token": "${ALICE_TOKEN}"}},
             "bob": {"auth": {"type": "bearer", "token": "${BOB_TOKEN}"}},
